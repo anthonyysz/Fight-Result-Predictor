@@ -3,10 +3,6 @@
 
 .ipynb_checkpoints/
 
-df_columns.csv
-df_finishes.csv
-df.csv
-
 .venv/
 /venv/
 env/
