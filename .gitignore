@@ -7,8 +7,13 @@
 /venv/
 env/
 
+__pycache__/
+*.py[cod]
+
 *.log
 *.tmp
 *.temp
 tmp/
 temp/
+
+scraper/output/
