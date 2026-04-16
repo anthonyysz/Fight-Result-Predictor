@@ -19,7 +19,7 @@ from historical_scraper.sources.ufcstats_scraper import apply_ufcstats_data, ini
 
 DEFAULT_START_DATE = "2024-12-14"
 SCRAPER_DIR = Path(__file__).resolve().parent
-REPO_DIR = SCRAPER_DIR.parent
+REPO_DIR = SCRAPER_DIR.parent.parent
 DATA_DIR = SCRAPER_DIR / "data"
 SQL_ENV_PATH = REPO_DIR / "sql_data" / ".env"
 

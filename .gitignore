@@ -9,9 +9,14 @@ env/
 
 __pycache__/
 *.py[cod]
+*.egg-info/
 
 *.log
 *.tmp
 *.temp
 tmp/
 temp/
+
+frontend/node_modules/
+frontend/dist/
+frontend/build/

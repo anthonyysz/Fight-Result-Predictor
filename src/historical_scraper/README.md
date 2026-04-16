@@ -30,12 +30,14 @@ The scraper does not write to SQL and does not use the Kaggle reference dataset 
 From the repo root:
 
 ```powershell
+.venv\Scripts\pip install -e .
 .venv\Scripts\python -m historical_scraper
 ```
 
 Optional:
 
 ```powershell
+.venv\Scripts\pip install -e .
 .venv\Scripts\python -m historical_scraper --start-date 2024-12-14
 ```
 
