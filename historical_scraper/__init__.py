@@ -1,0 +1,2 @@
+"""UFC event scraping package."""
+
