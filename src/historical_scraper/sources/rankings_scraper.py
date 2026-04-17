@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from pathlib import Path
+import os
 
 import pandas as pd
 import requests
@@ -18,19 +18,20 @@ DEFAULT_UA = (
 )
 
 
-def ensure_rankings_history(data_dir: Path) -> Path:
-    data_dir.mkdir(parents=True, exist_ok=True)
-    destination = data_dir / "rankings_history.csv"
-    if destination.exists():
+def ensure_rankings_history(data_dir: str) -> str:
+    os.makedirs(data_dir, exist_ok=True)
+    destination = os.path.join(data_dir, "rankings_history.csv")
+    if os.path.exists(destination):
         return destination
 
     response = requests.get(RANKINGS_HISTORY_URL, timeout=DEFAULT_TIMEOUT, headers={"User-Agent": DEFAULT_UA})
     response.raise_for_status()
-    destination.write_bytes(response.content)
+    with open(destination, "wb") as handle:
+        handle.write(response.content)
     return destination
 
 
-def apply_rankings(df: pd.DataFrame, data_dir: Path, alias_csv_path: Path) -> pd.DataFrame:
+def apply_rankings(df: pd.DataFrame, data_dir: str, alias_csv_path: str) -> pd.DataFrame:
     if df.empty:
         return df.copy()
 

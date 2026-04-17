@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
+import os
 
 from historical_scraper.core.csv_manager import (
     RECENT_FIGHTS_CSV_PATH,
@@ -18,10 +18,10 @@ from historical_scraper.sources.ufcstats_scraper import apply_ufcstats_data, ini
 
 
 DEFAULT_START_DATE = "2024-12-14"
-SCRAPER_DIR = Path(__file__).resolve().parent
-REPO_DIR = SCRAPER_DIR.parent.parent
-DATA_DIR = SCRAPER_DIR / "data"
-SQL_ENV_PATH = REPO_DIR / "sql_data" / ".env"
+SCRAPER_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_DIR = os.path.normpath(os.path.join(SCRAPER_DIR, "..", ".."))
+DATA_DIR = os.path.join(SCRAPER_DIR, "data")
+SQL_ENV_PATH = os.path.join(REPO_DIR, "sql_data", ".env")
 
 
 def parse_args() -> argparse.Namespace:
@@ -42,8 +42,8 @@ def main() -> None:
     initial_rows = initialize_recent_rows(start_date)
     df_internal = create_empty_recent_dataframe(initial_rows)
     df_internal = apply_ufcstats_data(df_internal)
-    df_internal = apply_odds(df_internal, DATA_DIR / "fighter_aliases.csv")
-    df_internal = apply_rankings(df_internal, DATA_DIR, DATA_DIR / "fighter_aliases.csv")
+    df_internal = apply_odds(df_internal, os.path.join(DATA_DIR, "fighter_aliases.csv"))
+    df_internal = apply_rankings(df_internal, DATA_DIR, os.path.join(DATA_DIR, "fighter_aliases.csv"))
 
     recent_df = finalize_recent_dataframe(df_internal)
     save_recent_dataframe(recent_df)
@@ -60,7 +60,7 @@ def main() -> None:
 
 
 def lookup_database_latest_fight_date() -> str | None:
-    if not SQL_ENV_PATH.exists():
+    if not os.path.exists(SQL_ENV_PATH):
         return None
 
     try:
@@ -96,9 +96,11 @@ def lookup_database_latest_fight_date() -> str | None:
         return None
 
 
-def read_dotenv(path: Path) -> dict[str, str]:
+def read_dotenv(path: str) -> dict[str, str]:
     values: dict[str, str] = {}
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
+    with open(path, "r", encoding="utf-8") as handle:
+        raw_lines = handle.read().splitlines()
+    for raw_line in raw_lines:
         line = raw_line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue

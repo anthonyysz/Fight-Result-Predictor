@@ -5,7 +5,7 @@ import unicodedata
 from datetime import date, datetime
 from typing import Iterable
 
-
+# Going from string to date object
 def parse_us_date(value: str) -> date:
     value = value.strip()
     for fmt in ("%B %d, %Y", "%b. %d, %Y", "%b %d, %Y", "%Y-%m-%d"):
@@ -15,7 +15,7 @@ def parse_us_date(value: str) -> date:
             continue
     raise ValueError(f"Unsupported date format: {value!r}")
 
-
+# Getting the date from a string
 def parse_optional_date(value: str | None) -> date | None:
     if not value:
         return None
@@ -24,7 +24,7 @@ def parse_optional_date(value: str | None) -> date | None:
         return None
     return parse_us_date(value)
 
-
+# Clearing extra whitespaces
 def clean_text(value: str | None) -> str:
     if value is None:
         return ""
@@ -34,7 +34,7 @@ def clean_text(value: str | None) -> str:
         value = str(value)
     return re.sub(r"\s+", " ", value).strip()
 
-
+# Removes accents, removes non-ASCII characters, makes it lowercase, replaces non-letters/numbers with spaces, and removes extra spaces
 def normalize_name(value: str | None) -> str:
     value = clean_text(value)
     normalized = unicodedata.normalize("NFKD", value)
@@ -44,7 +44,7 @@ def normalize_name(value: str | None) -> str:
     normalized = re.sub(r"\s+", " ", normalized).strip()
     return normalized
 
-
+# Getting the inch value from a couple of different spots
 def parse_inches(raw_value: str | None) -> float | None:
     if raw_value is None:
         return None
@@ -64,17 +64,17 @@ def parse_inches(raw_value: str | None) -> float | None:
 
     raise ValueError(f"Unsupported measurement: {raw_value!r}")
 
-
+# Inches to centimeters
 def inches_to_cm(inches: float | None) -> float | None:
     if inches is None:
         return None
     return round(inches * 2.54, 2)
 
-
+# Using inches to cm after getting just the inches value
 def parse_height_to_cm(raw_value: str | None) -> float | None:
     return inches_to_cm(parse_inches(raw_value))
 
-
+# Using inches to cm after getting just the inches value
 def parse_reach_to_cm(raw_value: str | None) -> float | None:
     return inches_to_cm(parse_inches(raw_value))
 
@@ -90,18 +90,18 @@ def parse_float(raw_value: str | None) -> float | None:
         return None
     return float(match.group(0))
 
-
+# Getting the (integer) number of rounds from a string
 def parse_scheduled_rounds(raw_value: str | None) -> int | None:
     if not raw_value:
         return None
     match = re.search(r"(\d+)\s*Rnd", raw_value)
     return int(match.group(1)) if match else None
 
-
+# Getting gender from weight class name
 def infer_gender(weight_class: str) -> str:
     return "FEMALE" if weight_class.startswith("Women's ") else "MALE"
 
-
+# Making our weight classes the ones we know
 def normalize_weight_class(weight_class: str) -> str:
     weight_class = clean_text(weight_class)
     weight_class = weight_class.replace("Womenâ€™s ", "Women's ")
@@ -134,7 +134,7 @@ def normalize_weight_class(weight_class: str) -> str:
             return known_weight_class
     return weight_class
 
-
+# Getting the fighter's age on fight day
 def age_on_fight_date(dob: date | None, fight_date: date) -> int | None:
     if dob is None:
         return None
@@ -142,7 +142,7 @@ def age_on_fight_date(dob: date | None, fight_date: date) -> int | None:
     had_birthday = (fight_date.month, fight_date.day) >= (dob.month, dob.day)
     return years if had_birthday else years - 1
 
-
+# Getting the profit amount based on whether the fighter won or lost
 def american_profit_multiple(odds: int | None, won: bool) -> float | None:
     if odds is None:
         return None
@@ -172,7 +172,7 @@ def parse_of_stat(raw_value: str | None) -> tuple[int | None, int | None]:
         return None, None
     return int(match.group(1)), int(match.group(2))
 
-
+# Getting the number of seconds into a round
 def parse_clock_to_seconds(raw_value: str | None) -> int | None:
     if raw_value is None:
         return None
@@ -182,7 +182,7 @@ def parse_clock_to_seconds(raw_value: str | None) -> int | None:
     minutes, seconds = value.split(":", 1)
     return int(minutes) * 60 + int(seconds)
 
-
+# Getting the total fight time in seconds
 def compute_total_fight_time_seconds(finish_round: int | None, finish_time: str | None) -> int | None:
     if finish_round is None or finish_round < 1:
         return None

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-import csv
-from pathlib import Path
+import os
 
+import pandas as pd
 from historical_scraper.core.utils import normalize_name
 
 
-DEFAULT_ALIAS_CSV_PATH = Path(__file__).resolve().parent.parent / "data" / "fighter_aliases.csv"
+DEFAULT_ALIAS_CSV_PATH = os.path.normpath(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "fighter_aliases.csv")
+)
 
 
 class AliasRegistry:
@@ -26,15 +28,14 @@ class AliasRegistry:
         return self._canonicals.get(normalized, normalized)
 
 
-def load_alias_registry(alias_csv_path: Path | None = None) -> AliasRegistry:
+def load_alias_registry(alias_csv_path: str | None = None) -> AliasRegistry:
     registry = AliasRegistry()
     csv_path = alias_csv_path or DEFAULT_ALIAS_CSV_PATH
-    if csv_path.exists():
-        with csv_path.open("r", encoding="utf-8-sig", newline="") as handle:
-            reader = csv.DictReader(handle)
-            for row in reader:
-                fighter = row.get("fighter")
-                alias = row.get("alias")
-                if fighter and alias:
-                    registry.add(fighter, alias)
+    if os.path.exists(csv_path):
+        aliases_df = pd.read_csv(csv_path, encoding="utf-8-sig")
+        for _, row in aliases_df.iterrows():
+            fighter = row.get("fighter")
+            alias = row.get("alias")
+            if pd.notna(fighter) and pd.notna(alias):
+                registry.add(str(fighter), str(alias))
     return registry

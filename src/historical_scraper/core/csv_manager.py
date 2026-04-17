@@ -1,18 +1,18 @@
 from __future__ import annotations
 
-from pathlib import Path
+import os
 
 import pandas as pd
 
 from historical_scraper.core.utils import american_profit_multiple
 
 
-SCRAPER_DIR = Path(__file__).resolve().parent.parent
-MISSING_DATA_DIR = SCRAPER_DIR / "missing_data"
-RECENT_FIGHTS_CSV_PATH = SCRAPER_DIR / "recent_fights.csv"
-MISSING_DATA_REPORT_PATH = MISSING_DATA_DIR / "missing_data_report.csv"
-MISSING_COLUMNS_SUMMARY_PATH = MISSING_DATA_DIR / "missing_columns_summary.csv"
-MISSING_ODDS_REPORT_PATH = MISSING_DATA_DIR / "missing_odds_report.csv"
+SCRAPER_DIR = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+MISSING_DATA_DIR = os.path.join(SCRAPER_DIR, "missing_data")
+RECENT_FIGHTS_CSV_PATH = os.path.join(SCRAPER_DIR, "recent_fights.csv")
+MISSING_DATA_REPORT_PATH = os.path.join(MISSING_DATA_DIR, "missing_data_report.csv")
+MISSING_COLUMNS_SUMMARY_PATH = os.path.join(MISSING_DATA_DIR, "missing_columns_summary.csv")
+MISSING_ODDS_REPORT_PATH = os.path.join(MISSING_DATA_DIR, "missing_odds_report.csv")
 
 INTERNAL_COLUMNS = [
     "fight_date",
@@ -228,7 +228,7 @@ def finalize_recent_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     return recent[RECENT_COLUMNS].copy()
 
 
-def save_recent_dataframe(df: pd.DataFrame) -> Path:
+def save_recent_dataframe(df: pd.DataFrame) -> str:
     df[RECENT_COLUMNS].to_csv(RECENT_FIGHTS_CSV_PATH, index=False)
     return RECENT_FIGHTS_CSV_PATH
 
@@ -267,8 +267,8 @@ def build_missing_summary(df: pd.DataFrame) -> pd.DataFrame:
     return summary
 
 
-def save_missing_reports(df: pd.DataFrame) -> tuple[Path, Path]:
-    MISSING_DATA_DIR.mkdir(parents=True, exist_ok=True)
+def save_missing_reports(df: pd.DataFrame) -> tuple[str, str]:
+    os.makedirs(MISSING_DATA_DIR, exist_ok=True)
     missing_report = build_missing_data_report(df)
     missing_summary = build_missing_summary(df)
     missing_report.to_csv(MISSING_DATA_REPORT_PATH, index=False)
@@ -276,8 +276,8 @@ def save_missing_reports(df: pd.DataFrame) -> tuple[Path, Path]:
     return MISSING_DATA_REPORT_PATH, MISSING_COLUMNS_SUMMARY_PATH
 
 
-def save_missing_odds_report(df: pd.DataFrame) -> Path:
-    MISSING_DATA_DIR.mkdir(parents=True, exist_ok=True)
+def save_missing_odds_report(df: pd.DataFrame) -> str:
+    os.makedirs(MISSING_DATA_DIR, exist_ok=True)
     rows = []
     for index, row in df.reset_index(drop=True).iterrows():
         if pd.isna(row["red_odds"]) or pd.isna(row["blue_odds"]):
