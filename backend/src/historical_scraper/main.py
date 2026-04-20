@@ -19,13 +19,15 @@ from historical_scraper.sources.ufcstats_scraper import apply_ufcstats_data, ini
 
 DEFAULT_START_DATE = "2024-12-14"
 SCRAPER_DIR = os.path.dirname(os.path.abspath(__file__))
-REPO_DIR = os.path.normpath(os.path.join(SCRAPER_DIR, "..", ".."))
-DATA_DIR = os.path.join(SCRAPER_DIR, "data")
-SQL_ENV_PATH = os.path.join(REPO_DIR, "sql_data", ".env")
+BACKEND_DIR = os.path.normpath(os.path.join(SCRAPER_DIR, "..", ".."))
+REFERENCE_DATA_DIR = os.path.join(BACKEND_DIR, "data", "reference", "historical_scraper")
+SQL_ENV_PATH = os.path.join(BACKEND_DIR, ".env")
 
-
+# Adding a start date argument
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Build historical_scraper/recent_fights.csv from 2024-12-14 to present.")
+    parser = argparse.ArgumentParser(
+        description="Build backend/data/generated/historical_scraper/recent_fights.csv from 2024-12-14 to present."
+    )
     parser.add_argument(
         "--start-date",
         default=DEFAULT_START_DATE,
@@ -37,14 +39,18 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     start_date = parse_us_date(args.start_date)
+    # Checking when we need to start scraping from
     database_latest_fight_date = lookup_database_latest_fight_date()
 
+    # Creating the dataframe using apply odds, apply rankings, and apply stats from the respective source files
     initial_rows = initialize_recent_rows(start_date)
     df_internal = create_empty_recent_dataframe(initial_rows)
     df_internal = apply_ufcstats_data(df_internal)
-    df_internal = apply_odds(df_internal, os.path.join(DATA_DIR, "fighter_aliases.csv"))
-    df_internal = apply_rankings(df_internal, DATA_DIR, os.path.join(DATA_DIR, "fighter_aliases.csv"))
+    alias_csv_path = os.path.join(REFERENCE_DATA_DIR, "fighter_aliases.csv")
+    df_internal = apply_odds(df_internal, alias_csv_path)
+    df_internal = apply_rankings(df_internal, REFERENCE_DATA_DIR, alias_csv_path)
 
+    # Saving the dataframe and the missing data reports
     recent_df = finalize_recent_dataframe(df_internal)
     save_recent_dataframe(recent_df)
     missing_report_path, missing_summary_path = save_missing_reports(recent_df)
@@ -58,7 +64,7 @@ def main() -> None:
     print(f"missing_odds_report: {missing_odds_report_path}")
     print(f"fight_rows: {len(recent_df)}")
 
-
+# Checking for the most recent fight that's been added to the SQL database
 def lookup_database_latest_fight_date() -> str | None:
     if not os.path.exists(SQL_ENV_PATH):
         return None
@@ -95,7 +101,7 @@ def lookup_database_latest_fight_date() -> str | None:
     except Exception:
         return None
 
-
+# Used to read the environment file
 def read_dotenv(path: str) -> dict[str, str]:
     values: dict[str, str] = {}
     with open(path, "r", encoding="utf-8") as handle:

@@ -78,7 +78,7 @@ def parse_height_to_cm(raw_value: str | None) -> float | None:
 def parse_reach_to_cm(raw_value: str | None) -> float | None:
     return inches_to_cm(parse_inches(raw_value))
 
-
+# Going from string to float
 def parse_float(raw_value: str | None) -> float | None:
     if raw_value is None:
         return None
@@ -160,7 +160,7 @@ def american_profit_multiple(odds: int | None, won: bool) -> float | None:
     except Exception:
         return None
 
-
+# Getting stat integer from string
 def parse_of_stat(raw_value: str | None) -> tuple[int | None, int | None]:
     if raw_value is None:
         return None, None
@@ -191,11 +191,11 @@ def compute_total_fight_time_seconds(finish_round: int | None, finish_time: str 
         return None
     return ((finish_round - 1) * 300) + clock
 
-
+# Making sure the directory exists
 def ensure_dir(path) -> None:
     path.mkdir(parents=True, exist_ok=True)
 
-
+# Getting the unique items from a list
 def unique_preserving_order(items: Iterable[str]) -> list[str]:
     seen: set[str] = set()
     ordered: list[str] = []

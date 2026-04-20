@@ -1,7 +1,11 @@
 .env
 .env.*
+!.env.example
+!backend/.env.example
+!frontend/.env.example
 
 .ipynb_checkpoints/
+.pytest_cache/
 
 .venv/
 /venv/
@@ -20,3 +24,4 @@ temp/
 frontend/node_modules/
 frontend/dist/
 frontend/build/
+frontend/.next/

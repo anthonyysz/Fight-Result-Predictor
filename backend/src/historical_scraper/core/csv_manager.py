@@ -7,13 +7,14 @@ import pandas as pd
 from historical_scraper.core.utils import american_profit_multiple
 
 
-SCRAPER_DIR = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-MISSING_DATA_DIR = os.path.join(SCRAPER_DIR, "missing_data")
-RECENT_FIGHTS_CSV_PATH = os.path.join(SCRAPER_DIR, "recent_fights.csv")
+BACKEND_DIR = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
+GENERATED_DATA_DIR = os.path.join(BACKEND_DIR, "data", "generated", "historical_scraper")
+MISSING_DATA_DIR = os.path.join(GENERATED_DATA_DIR, "missing_data")
+RECENT_FIGHTS_CSV_PATH = os.path.join(GENERATED_DATA_DIR, "recent_fights.csv")
 MISSING_DATA_REPORT_PATH = os.path.join(MISSING_DATA_DIR, "missing_data_report.csv")
 MISSING_COLUMNS_SUMMARY_PATH = os.path.join(MISSING_DATA_DIR, "missing_columns_summary.csv")
 MISSING_ODDS_REPORT_PATH = os.path.join(MISSING_DATA_DIR, "missing_odds_report.csv")
-
+# The columns used while getting the data for the recent_fights dataframe
 INTERNAL_COLUMNS = [
     "fight_date",
     "event_name",
@@ -72,7 +73,7 @@ INTERNAL_COLUMNS = [
     "blue_avg_sub_att",
     "blue_avg_td_landed",
 ]
-
+# The columns used in the recent_fights dataframe
 RECENT_COLUMNS = [
     "RedFighter",
     "BlueFighter",
@@ -133,7 +134,7 @@ RECENT_COLUMNS = [
     "RMatchWCRank",
 ]
 
-
+# Creating an empty dataframe with all of the internal columns
 def create_empty_recent_dataframe(fight_rows: list[dict]) -> pd.DataFrame:
     df = pd.DataFrame(fight_rows)
     for column in INTERNAL_COLUMNS:
@@ -141,7 +142,7 @@ def create_empty_recent_dataframe(fight_rows: list[dict]) -> pd.DataFrame:
             df[column] = pd.NA
     return df[INTERNAL_COLUMNS].copy()
 
-
+# Returning the dataframe with only the columns used in recent_fights.csv
 def finalize_recent_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     recent = pd.DataFrame(
         {
@@ -227,12 +228,13 @@ def finalize_recent_dataframe(df: pd.DataFrame) -> pd.DataFrame:
         recent[column] = recent[column].round(4)
     return recent[RECENT_COLUMNS].copy()
 
-
+# Saving recent_fights.csv
 def save_recent_dataframe(df: pd.DataFrame) -> str:
+    os.makedirs(GENERATED_DATA_DIR, exist_ok=True)
     df[RECENT_COLUMNS].to_csv(RECENT_FIGHTS_CSV_PATH, index=False)
     return RECENT_FIGHTS_CSV_PATH
 
-
+# Building the missing data report for rows with missing data
 def build_missing_data_report(df: pd.DataFrame) -> pd.DataFrame:
     rows: list[dict] = []
     for _, row in df.iterrows():
@@ -253,7 +255,7 @@ def build_missing_data_report(df: pd.DataFrame) -> pd.DataFrame:
         columns=["Date", "RedFighter", "BlueFighter", "MissingColumnCount", "MissingColumns"],
     )
 
-
+# Building the report for how many missing data points there are in each column
 def build_missing_summary(df: pd.DataFrame) -> pd.DataFrame:
     summary_rows = []
     for column in RECENT_COLUMNS:
@@ -266,7 +268,7 @@ def build_missing_summary(df: pd.DataFrame) -> pd.DataFrame:
         summary = summary.sort_values(["MissingCount", "ColumnName"], ascending=[False, True]).reset_index(drop=True)
     return summary
 
-
+# Saving the missing reports in their folder
 def save_missing_reports(df: pd.DataFrame) -> tuple[str, str]:
     os.makedirs(MISSING_DATA_DIR, exist_ok=True)
     missing_report = build_missing_data_report(df)
@@ -275,7 +277,7 @@ def save_missing_reports(df: pd.DataFrame) -> tuple[str, str]:
     missing_summary.to_csv(MISSING_COLUMNS_SUMMARY_PATH, index=False)
     return MISSING_DATA_REPORT_PATH, MISSING_COLUMNS_SUMMARY_PATH
 
-
+# Building and saving the report for rows with odds missing
 def save_missing_odds_report(df: pd.DataFrame) -> str:
     os.makedirs(MISSING_DATA_DIR, exist_ok=True)
     rows = []

@@ -29,19 +29,19 @@ DEFAULT_UA = (
     "Chrome/135.0.0.0 Safari/537.36"
 )
 
-
+# Starting a session
 def create_session() -> requests.Session:
     session = requests.Session()
     session.headers.update({"User-Agent": DEFAULT_UA})
     return session
 
-
+# Getting the text from a page
 def get_soup(session: requests.Session, url: str) -> BeautifulSoup:
     response = session.get(url, timeout=DEFAULT_TIMEOUT)
     response.raise_for_status()
     return BeautifulSoup(response.text, "html.parser")
 
-
+# Getting all of our completed events
 def list_completed_events(session: requests.Session, start_date) -> list[dict[str, Any]]:
     soup = get_soup(session, UFCSTATS_EVENTS_URL)
     events: list[dict[str, Any]] = []
@@ -68,7 +68,7 @@ def list_completed_events(session: requests.Session, start_date) -> list[dict[st
     events.sort(key=lambda event: event["fight_date"])
     return events
 
-
+# Getting the basic info from our rows to help with getting stats
 def initialize_recent_rows(start_date) -> list[dict[str, Any]]:
     session = create_session()
     rows: list[dict[str, Any]] = []
@@ -94,7 +94,7 @@ def initialize_recent_rows(start_date) -> list[dict[str, Any]]:
             )
     return rows
 
-
+# Finding who is in which corner
 def parse_fight_corners(session: requests.Session, fight_url: str) -> dict[str, str]:
     soup = get_soup(session, fight_url)
     totals_row = soup.select_one("section.b-fight-details__section table tbody tr")
@@ -104,6 +104,7 @@ def parse_fight_corners(session: requests.Session, fight_url: str) -> dict[str, 
     if len(fighter_links) < 2:
         raise ValueError(f"Unable to find two fighters in totals table for fight {fight_url}")
 
+    # Getting the link and fighter name of each fighter
     unique_links: list[tuple[str, str]] = []
     seen_urls: set[str] = set()
     for fighter_link in fighter_links:
@@ -129,6 +130,7 @@ def parse_fight_corners(session: requests.Session, fight_url: str) -> dict[str, 
 def apply_ufcstats_data(df: pd.DataFrame) -> pd.DataFrame:
     session = create_session()
 
+    # Getting the fighter-specific details form the fighter url
     @lru_cache(maxsize=2048)
     def fighter_profile(fighter_url: str) -> dict[str, Any]:
         soup = get_soup(session, fighter_url)
@@ -140,6 +142,7 @@ def apply_ufcstats_data(df: pd.DataFrame) -> pd.DataFrame:
             key, value = text.split(":", 1)
             stats[clean_text(key)] = clean_text(value)
 
+        # Getting their stance
         stance = stats.get("STANCE")
         if not stance or stance == "--":
             stance = "Unknown"
@@ -170,6 +173,7 @@ def apply_ufcstats_data(df: pd.DataFrame) -> pd.DataFrame:
                 }
             )
 
+        # Parsing the stats to be saved to the df
         history_rows.sort(key=lambda bout: bout["fight_date"])
         return {
             "height_cms": parse_height_to_cm(stats.get("Height")),
@@ -182,6 +186,7 @@ def apply_ufcstats_data(df: pd.DataFrame) -> pd.DataFrame:
             "history": history_rows,
         }
 
+    # Adding this fight data to the dataframe
     enriched_rows: list[dict[str, Any]] = []
     for _, row in df.iterrows():
         row_dict = row.to_dict()
@@ -242,7 +247,7 @@ def apply_ufcstats_data(df: pd.DataFrame) -> pd.DataFrame:
 
     return pd.DataFrame(enriched_rows)
 
-
+# Getting fight details 
 def parse_fight_detail(session: requests.Session, fight_url: str) -> dict[str, Any]:
     soup = get_soup(session, fight_url)
     detail_block = soup.select_one("div.b-fight-details__fight")
@@ -286,7 +291,7 @@ def parse_fight_detail(session: requests.Session, fight_url: str) -> dict[str, A
         "weight_class": weight_class,
     }
 
-
+# Adding up each of their win/loss stats
 def summarize_prefight_stats(history: list[dict[str, Any]], fight_date) -> dict[str, int]:
     prior_bouts = [bout for bout in history if bout["fight_date"] < fight_date]
 
@@ -332,12 +337,12 @@ def summarize_prefight_stats(history: list[dict[str, Any]], fight_date) -> dict[
         "longest_win_streak": longest_win_streak,
     }
 
-
+# Checking for KO
 def is_ko_method(method: str) -> bool:
     upper = clean_text(method).upper()
     return "KO" in upper
 
-
+# Checking for submission
 def is_submission_method(method: str) -> bool:
     upper = clean_text(method).upper()
     return upper.startswith("SUB")

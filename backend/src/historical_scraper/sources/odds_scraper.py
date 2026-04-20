@@ -86,7 +86,7 @@ class FightOddsEvent:
     event_date: date
     pk: int
 
-
+# Starting the session
 def create_session() -> requests.Session:
     session = requests.Session()
     session.headers.update({"User-Agent": DEFAULT_UA, "Content-Type": "application/json"})

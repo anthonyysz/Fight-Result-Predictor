@@ -1,5 +1,18 @@
 # Fight-Result-Predictor
 
+## Project Layout
+
+- `backend/`
+  - Python scrapers, future backend API code, database schema files, and backend env files
+- `frontend/`
+  - Reserved for the future web application
+- `data/`
+  - Existing project CSVs used for modeling and notebook work
+- `models/`
+  - Saved model artifacts
+- `notebooks/`
+  - Exploration, preprocessing, and modeling notebooks
+
 ## 1. Introduction
 &nbsp;&nbsp;&nbsp;&nbsp;For my final project as a WGU student, I wanted to build something to really tie together a lot of the concepts I've learned during my time here. There are many concepts that we touched upon at WGU which I'd like to expand on. I want this project to tie together front-end and back-end programming, machine learning, and a CI/CD pipeline.
 

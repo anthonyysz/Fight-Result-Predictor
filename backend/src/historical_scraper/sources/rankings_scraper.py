@@ -17,7 +17,7 @@ DEFAULT_UA = (
     "Chrome/135.0.0.0 Safari/537.36"
 )
 
-
+# Getting the rankings_history csv from the GitHub of the person who updates historical rankings
 def ensure_rankings_history(data_dir: str) -> str:
     os.makedirs(data_dir, exist_ok=True)
     destination = os.path.join(data_dir, "rankings_history.csv")
@@ -32,13 +32,16 @@ def ensure_rankings_history(data_dir: str) -> str:
 
 
 def apply_rankings(df: pd.DataFrame, data_dir: str, alias_csv_path: str) -> pd.DataFrame:
+    # If the dataframe is empty, we return it like that
     if df.empty:
         return df.copy()
 
+    # Bringing in the rankings data and changing the date to a datetime object from string
     rankings_path = ensure_rankings_history(data_dir)
     rankings_df = pd.read_csv(rankings_path)
     rankings_df["date"] = pd.to_datetime(rankings_df["date"]).dt.date
 
+    # Mapping aliases
     aliases = load_alias_registry(alias_csv_path)
     rankings_df["fighter_key"] = rankings_df["fighter"].map(lambda value: aliases.canonicalize(value))
     rankings_df = rankings_df.sort_values(["date", "weightclass", "rank"]).reset_index(drop=True)
@@ -46,17 +49,21 @@ def apply_rankings(df: pd.DataFrame, data_dir: str, alias_csv_path: str) -> pd.D
     @lru_cache(maxsize=8192)
     def rank_for(fighter_name: str, fight_date, weight_class: str) -> int:
         fighter_key = aliases.canonicalize(fighter_name)
+        # Finding if a fighter is in the rankings df around the same time
         filtered = rankings_df[
             (rankings_df["fighter_key"] == fighter_key)
             & (rankings_df["weightclass"] == weight_class)
             & (rankings_df["date"] <= fight_date)
         ]
+        # If not return 20
         if filtered.empty:
             return 20
+        # If the dates line up, give them their rank
         latest_date = filtered["date"].max()
         latest = filtered[filtered["date"] == latest_date].sort_values("rank").iloc[0]
         return int(latest["rank"])
 
+    # Applying the rank for function for our fighters
     updated_rows = []
     for _, row in df.iterrows():
         row_dict = row.to_dict()

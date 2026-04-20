@@ -55,7 +55,7 @@ psql --host=<rds-endpoint> --port=5432 --username=<username> --dbname=fight_data
 
 ### 4. Point your app or scraper at RDS
 
-Update `sql_data/.env`:
+Update `backend/.env`:
 
 ```text
 DATABASE_URL=postgresql://username:password@your-rds-endpoint:5432/fight_data
@@ -88,12 +88,12 @@ psql $env:DATABASE_URL -c "SELECT MAX(fight_date) FROM public.all_fights;"
 ### `psql` asks for a password and fails
 
 - make sure you are using the right username
-- make sure the password in `sql_data/.env` matches the database user
+- make sure the password in `backend/.env` matches the database user
 - if you used `DATABASE_URL`, remember that special characters in the password must be URL-encoded
 
 ### `DATABASE_URL is not set`
 
-- make sure `sql_data/.env` exists
+- make sure `backend/.env` exists
 - make sure the file contains `DATABASE_URL=...`
 
 ### Connection refused

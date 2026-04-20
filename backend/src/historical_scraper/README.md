@@ -1,6 +1,6 @@
 # Historical Scraper
 
-This scraper builds `historical_scraper/recent_fights.csv` from `2024-12-14` to the present by applying source data in stages:
+This scraper builds `backend/data/generated/historical_scraper/recent_fights.csv` from `2024-12-14` to the present by applying source data in stages:
 
 1. `ufcstats_scraper.py`
    - Initializes the fight rows from UFC Stats completed events
@@ -8,9 +8,9 @@ This scraper builds `historical_scraper/recent_fights.csv` from `2024-12-14` to 
 2. `odds_scraper.py`
    - Fills odds from FightOdds using sportsbook priority:
    - `FanDuel`, then `BetUS`, then `MyBookieAG`, then `MyBookie`
-   - If none exist, the odds stay null and the fight is listed in `missing_data/missing_odds_report.csv`
+   - If none exist, the odds stay null and the fight is listed in `backend/data/generated/historical_scraper/missing_data/missing_odds_report.csv`
 3. `rankings_scraper.py`
-   - Fills historical rankings from `rankings_history.csv`
+   - Fills historical rankings from `backend/data/reference/historical_scraper/rankings_history.csv`
    - Unranked fighters are filled as `20`
 
 The scraper does not write to SQL and does not use the Kaggle reference dataset as an input source.
@@ -30,23 +30,23 @@ The scraper does not write to SQL and does not use the Kaggle reference dataset 
 From the repo root:
 
 ```powershell
-.venv\Scripts\pip install -e .
+.venv\Scripts\pip install -e .\backend
 .venv\Scripts\python -m historical_scraper
 ```
 
 Optional:
 
 ```powershell
-.venv\Scripts\pip install -e .
+.venv\Scripts\pip install -e .\backend
 .venv\Scripts\python -m historical_scraper --start-date 2024-12-14
 ```
 
 ## Outputs
 
-- `historical_scraper/recent_fights.csv`
-- `historical_scraper/missing_data/missing_data_report.csv`
-- `historical_scraper/missing_data/missing_columns_summary.csv`
-- `historical_scraper/missing_data/missing_odds_report.csv`
+- `backend/data/generated/historical_scraper/recent_fights.csv`
+- `backend/data/generated/historical_scraper/missing_data/missing_data_report.csv`
+- `backend/data/generated/historical_scraper/missing_data/missing_columns_summary.csv`
+- `backend/data/generated/historical_scraper/missing_data/missing_odds_report.csv`
 
 ## Notes
 

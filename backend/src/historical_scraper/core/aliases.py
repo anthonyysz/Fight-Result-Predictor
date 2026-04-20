@@ -6,15 +6,20 @@ import pandas as pd
 from historical_scraper.core.utils import normalize_name
 
 
-DEFAULT_ALIAS_CSV_PATH = os.path.normpath(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "fighter_aliases.csv")
+BACKEND_DIR = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
+DEFAULT_ALIAS_CSV_PATH = os.path.join(
+    BACKEND_DIR,
+    "data",
+    "reference",
+    "historical_scraper",
+    "fighter_aliases.csv",
 )
 
-
+# Creating the Alias registry class with some functions
 class AliasRegistry:
     def __init__(self) -> None:
         self._canonicals: dict[str, str] = {}
-
+    # Adding an alias
     def add(self, fighter: str, alias: str) -> None:
         normalized_fighter = normalize_name(fighter)
         normalized_alias = normalize_name(alias)
@@ -27,7 +32,7 @@ class AliasRegistry:
         normalized = normalize_name(name)
         return self._canonicals.get(normalized, normalized)
 
-
+# Loading the alias registry
 def load_alias_registry(alias_csv_path: str | None = None) -> AliasRegistry:
     registry = AliasRegistry()
     csv_path = alias_csv_path or DEFAULT_ALIAS_CSV_PATH
