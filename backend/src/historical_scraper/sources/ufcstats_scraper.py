@@ -127,10 +127,8 @@ def parse_fight_corners(session: requests.Session, fight_url: str) -> dict[str, 
     }
 
 
-def apply_ufcstats_data(df: pd.DataFrame) -> pd.DataFrame:
-    session = create_session()
-
-    # Getting the fighter-specific details form the fighter url
+# Getting the shared fighter profile details from the fighter url
+def build_fighter_profile_lookup(session: requests.Session):
     @lru_cache(maxsize=2048)
     def fighter_profile(fighter_url: str) -> dict[str, Any]:
         soup = get_soup(session, fighter_url)
@@ -185,6 +183,16 @@ def apply_ufcstats_data(df: pd.DataFrame) -> pd.DataFrame:
             "avg_sub_att": parse_float(stats.get("Sub. Avg.")) or 0.0,
             "history": history_rows,
         }
+
+    return fighter_profile
+
+
+def apply_ufcstats_data(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return df.copy()
+
+    session = create_session()
+    fighter_profile = build_fighter_profile_lookup(session)
 
     # Adding this fight data to the dataframe
     enriched_rows: list[dict[str, Any]] = []
@@ -247,17 +255,16 @@ def apply_ufcstats_data(df: pd.DataFrame) -> pd.DataFrame:
 
     return pd.DataFrame(enriched_rows)
 
-# Getting fight details 
+# Getting fight details
 def parse_fight_detail(session: requests.Session, fight_url: str) -> dict[str, Any]:
     soup = get_soup(session, fight_url)
     detail_block = soup.select_one("div.b-fight-details__fight")
-    if detail_block is None:
-        raise ValueError(f"Unable to find detail block for fight {fight_url}")
-
-    detail_items = [
-        item.get_text(" ", strip=True)
-        for item in detail_block.select("i.b-fight-details__text-item_first, i.b-fight-details__text-item")
-    ]
+    detail_items = []
+    if detail_block is not None:
+        detail_items = [
+            item.get_text(" ", strip=True)
+            for item in detail_block.select("i.b-fight-details__text-item_first, i.b-fight-details__text-item")
+        ]
     detail_map: dict[str, str] = {}
     for item in detail_items:
         if ":" not in item:
@@ -265,7 +272,7 @@ def parse_fight_detail(session: requests.Session, fight_url: str) -> dict[str, A
         key, value = item.split(":", 1)
         detail_map[clean_text(key)] = clean_text(value)
 
-    details_blocks = detail_block.select("p.b-fight-details__text")
+    details_blocks = detail_block.select("p.b-fight-details__text") if detail_block is not None else []
     finish_details = ""
     if len(details_blocks) > 1:
         finish_details = details_blocks[1].get_text(" ", strip=True).replace("Details:", "", 1).strip()
@@ -276,15 +283,16 @@ def parse_fight_detail(session: requests.Session, fight_url: str) -> dict[str, A
     title_bout = "belt.png" in title_html or "Interim" in weight_class
 
     persons = soup.select("div.b-fight-details__person")
-    if len(persons) != 2:
-        raise ValueError(f"Unable to find person blocks for fight {fight_url}")
-    red_status = clean_text(persons[0].select_one("i.b-fight-details__person-status").get_text(" ", strip=True))
+    red_status = ""
+    if len(persons) == 2:
+        red_status_node = persons[0].select_one("i.b-fight-details__person-status")
+        red_status = clean_text(red_status_node.get_text(" ", strip=True) if red_status_node else "")
 
     return {
         "red_winner": red_status == "W",
         "method": detail_map.get("Method", ""),
         "finish_details": finish_details,
-        "finish_round": int(detail_map.get("Round", "0")),
+        "finish_round": int(detail_map.get("Round", "0") or 0),
         "finish_time": detail_map.get("Time", ""),
         "number_of_rounds": parse_scheduled_rounds(detail_map.get("Time format")),
         "title_bout": title_bout,

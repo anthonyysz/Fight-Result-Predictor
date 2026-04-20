@@ -1,1 +1,1 @@
-"""Placeholder package for the future upcoming scraper."""
+"""Scraper package for the nearest upcoming UFC event."""
