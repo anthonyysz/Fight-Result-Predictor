@@ -1,0 +1,198 @@
+/* Setting up the home screen the way I need it */
+.home-screen {
+  width: 100%;
+  min-height: 100vh;
+  padding-top: 112px;
+  padding-bottom: 32px;
+}
+
+.home-container {
+  max-width: 1100px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 24px;
+  padding-right: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.home-heading-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
+}
+
+/* Setting up the text */
+.home-greeting-text {
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent-color);
+  margin-bottom: 8px;
+}
+
+.home-title-text {
+  font-size: 34px;
+  line-height: 40px;
+  font-weight: bold;
+}
+
+.home-bio-text {
+  font-size: 18px;
+  line-height: 28px;
+  color: var(--paragraph-color);
+  max-width: 460px;
+  text-align: right;
+}
+
+/* Fight table styling */
+.fight-table-shell {
+  width: 100%;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--shadow-color);
+}
+
+.fight-table-header {
+  display: grid;
+  grid-template-columns: minmax(250px, 2fr) minmax(120px, 0.9fr) minmax(130px, 1fr) minmax(130px, 1fr) minmax(120px, 0.9fr) minmax(110px, 0.9fr);
+  gap: 16px;
+  padding: 16px 20px;
+  background-color: var(--header-color);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.fight-table-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.fight-table-row {
+  display: grid;
+  grid-template-columns: minmax(250px, 2fr) minmax(120px, 0.9fr) minmax(130px, 1fr) minmax(130px, 1fr) minmax(120px, 0.9fr) minmax(110px, 0.9fr);
+  gap: 16px;
+  padding: 18px 20px;
+  align-items: center;
+  background-color: var(--panel-color);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.fight-table-row:nth-child(even) {
+  background-color: var(--panel-color-2);
+}
+
+.fight-table-item {
+  min-width: 0;
+}
+
+.fighter-item {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fighter-row,
+.odds-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.corner-label {
+  font-size: 12px;
+  line-height: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.red-corner {
+  color: var(--red-color);
+}
+
+.blue-corner {
+  color: var(--blue-color);
+}
+
+.fighter-name {
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.odds-item,
+.data-item {
+  color: var(--paragraph-color);
+}
+
+@media (max-width: 900px) {
+  .home-heading-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .home-bio-text {
+    max-width: none;
+    text-align: left;
+  }
+
+  .fight-table-header {
+    display: none;
+  }
+
+  .fight-table-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .fight-table-item::before {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 12px;
+    line-height: 16px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-color);
+  }
+
+  .fighter-item::before {
+    content: "Fighter";
+  }
+
+  .odds-item::before {
+    content: "Odds";
+  }
+
+  .data-item::before {
+    content: attr(data-label);
+  }
+}
+
+@media (max-width: 640px) {
+  .home-screen {
+    padding-top: 130px;
+  }
+
+  .home-container {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .home-title-text {
+    font-size: 28px;
+    line-height: 34px;
+  }
+
+  .home-bio-text {
+    font-size: 16px;
+    line-height: 24px;
+  }
+
+  .fight-table-row {
+    grid-template-columns: 1fr;
+  }
+}
