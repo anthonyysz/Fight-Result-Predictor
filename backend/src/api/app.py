@@ -1,0 +1,430 @@
+from __future__ import annotations
+
+import os
+from datetime import date
+from typing import Any, Literal
+
+import pandas as pd
+import psycopg
+from fastapi import Depends, FastAPI, HTTPException
+from pydantic import BaseModel
+
+from historical_scraper.core.csv_manager import RECENT_COLUMNS
+from historical_scraper.core.utils import american_profit_multiple, parse_us_date
+from historical_scraper.main import DEFAULT_START_DATE, lookup_database_latest_fight_date, read_dotenv, run_recent_scrape
+from historical_scraper.sources.ufcstats_scraper import create_session, parse_fight_detail
+from upcoming_scraper.main import run_upcoming_scrape
+
+
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+BACKEND_DIR = os.path.normpath(os.path.join(APP_DIR, "..", ".."))
+SQL_ENV_PATH = os.path.join(BACKEND_DIR, ".env")
+RECENT_FIGHTS_CSV_PATH = os.path.join(BACKEND_DIR, "data", "generated", "historical_scraper", "recent_fights.csv")
+UPCOMING_FIGHTS_CSV_PATH = os.path.join(BACKEND_DIR, "data", "generated", "upcoming_scraper", "upcoming_fights.csv")
+UPCOMING_METADATA_CSV_PATH = os.path.join(
+    BACKEND_DIR, "data", "generated", "upcoming_scraper", "upcoming_fights_metadata.csv"
+)
+CSV_TO_DB_COLUMNS = [
+    ("RedFighter", "red_fighter"),
+    ("BlueFighter", "blue_fighter"),
+    ("RedOdds", "red_odds"),
+    ("BlueOdds", "blue_odds"),
+    ("RedWinner", "red_winner"),
+    ("RedReturn", "red_return"),
+    ("BlueReturn", "blue_return"),
+    ("OddsDiff", "odds_diff"),
+    ("AgeDiff", "age_diff"),
+    ("ReachDiff", "reach_diff"),
+    ("HeightDiff", "height_diff"),
+    ("WinsDiff", "wins_diff"),
+    ("LossesDiff", "losses_diff"),
+    ("RoundsDiff", "rounds_diff"),
+    ("TitleBoutDiff", "title_bout_diff"),
+    ("KODiff", "ko_diff"),
+    ("SubmissionDiff", "submission_diff"),
+    ("WinStreakDiff", "win_streak_diff"),
+    ("LoseStreakDiff", "lose_streak_diff"),
+    ("LongestWinStreakDiff", "longest_win_streak_diff"),
+    ("SigStrDiff", "sig_str_diff"),
+    ("SubAttDiff", "sub_att_diff"),
+    ("TDDiff", "td_diff"),
+    ("RankDiff", "rank_diff"),
+    ("Date", "fight_date"),
+    ("TitleBout", "title_bout"),
+    ("WeightClass", "weight_class"),
+    ("Gender", "gender"),
+    ("NumberOfRounds", "number_of_rounds"),
+    ("BlueCurrentLoseStreak", "blue_current_lose_streak"),
+    ("BlueCurrentWinStreak", "blue_current_win_streak"),
+    ("BlueLongestWinStreak", "blue_longest_win_streak"),
+    ("BlueLosses", "blue_losses"),
+    ("BlueTotalRoundsFought", "blue_total_rounds_fought"),
+    ("BlueTotalTitleBouts", "blue_total_title_bouts"),
+    ("BlueWinsByKO", "blue_wins_by_ko"),
+    ("BlueWinsBySubmission", "blue_wins_by_submission"),
+    ("BlueWins", "blue_wins"),
+    ("BlueStance", "blue_stance"),
+    ("BlueHeightCms", "blue_height_cms"),
+    ("BlueReachCms", "blue_reach_cms"),
+    ("RedCurrentLoseStreak", "red_current_lose_streak"),
+    ("RedCurrentWinStreak", "red_current_win_streak"),
+    ("RedLongestWinStreak", "red_longest_win_streak"),
+    ("RedLosses", "red_losses"),
+    ("RedTotalRoundsFought", "red_total_rounds_fought"),
+    ("RedTotalTitleBouts", "red_total_title_bouts"),
+    ("RedWinsByKO", "red_wins_by_ko"),
+    ("RedWinsBySubmission", "red_wins_by_submission"),
+    ("RedWins", "red_wins"),
+    ("RedStance", "red_stance"),
+    ("RedHeightCms", "red_height_cms"),
+    ("RedReachCms", "red_reach_cms"),
+    ("RedAge", "red_age"),
+    ("BlueAge", "blue_age"),
+    ("BMatchWCRank", "b_match_wc_rank"),
+    ("RMatchWCRank", "r_match_wc_rank"),
+]
+DB_COLUMNS = [db_column for _, db_column in CSV_TO_DB_COLUMNS] + ["source_name"]
+UPSERT_SQL = (
+    f"INSERT INTO public.all_fights ({', '.join(DB_COLUMNS)}) "
+    f"VALUES ({', '.join(['%s'] * len(DB_COLUMNS))}) "
+    "ON CONFLICT ON CONSTRAINT all_fights_unique_fight DO NOTHING"
+)
+
+app = FastAPI(title="Fight Result Predictor Admin API", version="0.1.0")
+
+
+class HealthResponse(BaseModel):
+    status: str
+
+
+class RecentScrapeRequest(BaseModel):
+    start_date: date | None = None
+
+
+class SourceLoadRequest(BaseModel):
+    source: Literal["recent", "upcoming"]
+
+
+class ScrapeResponse(BaseModel):
+    message: str
+    output_path: str
+    row_count: int
+    metadata_path: str | None = None
+    missing_data_report: str | None = None
+    missing_columns_summary: str | None = None
+    missing_odds_report: str | None = None
+    event_name: str | None = None
+    event_date: str | None = None
+    start_date: str | None = None
+    database_latest_fight_date: str | None = None
+
+
+class FinishResponse(BaseModel):
+    message: str
+    output_path: str
+    row_count: int
+    completed_fights: list[str]
+
+
+class LoadResponse(BaseModel):
+    message: str
+    source: str
+    csv_path: str
+    inserted_count: int
+    skipped_duplicate_count: int
+    duplicate_fights: list[str]
+
+
+def get_conninfo() -> str:
+    if not os.path.exists(SQL_ENV_PATH):
+        raise HTTPException(status_code=500, detail=f"Missing backend env file at {SQL_ENV_PATH}")
+
+    env_values = read_dotenv(SQL_ENV_PATH)
+    database_url = env_values.get("DATABASE_URL")
+    if database_url:
+        return database_url
+
+    required_keys = ["PGHOST", "PGPORT", "PGDATABASE", "PGUSER", "PGPASSWORD"]
+    missing = [key for key in required_keys if not env_values.get(key)]
+    if missing:
+        raise HTTPException(status_code=500, detail=f"Missing database settings: {', '.join(missing)}")
+
+    return (
+        f"host={env_values['PGHOST']} "
+        f"port={env_values['PGPORT']} "
+        f"dbname={env_values['PGDATABASE']} "
+        f"user={env_values['PGUSER']} "
+        f"password={env_values['PGPASSWORD']}"
+    )
+
+
+def get_db_connection() -> Any:
+    try:
+        with psycopg.connect(get_conninfo()) as conn:
+            yield conn
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Database connection failed: {exc}") from exc
+
+
+def ensure_file_exists(path: str, label: str) -> None:
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail=f"Missing {label}: {path}")
+
+
+def validate_load_ready_dataframe(df: pd.DataFrame, label: str) -> pd.DataFrame:
+    actual_columns = list(df.columns)
+    if actual_columns != RECENT_COLUMNS:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": f"{label} must match the exact load-ready schema",
+                "expected_columns": RECENT_COLUMNS,
+                "actual_columns": actual_columns,
+            },
+        )
+
+    missing_counts = df[RECENT_COLUMNS].isna().sum()
+    columns_with_missing = [column for column, count in missing_counts.items() if int(count) > 0]
+    if columns_with_missing:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": f"{label} contains missing values and should be reviewed before loading",
+                "columns_with_missing_values": columns_with_missing,
+            },
+        )
+
+    return df.copy()
+
+
+def build_upcoming_metadata(initial_rows: list[dict[str, Any]]) -> str:
+    metadata_rows = [
+        {
+            "Date": row["fight_date"],
+            "RedFighter": row["red_fighter"],
+            "BlueFighter": row["blue_fighter"],
+            "event_name": row["event_name"],
+            "event_url": row["event_url"],
+            "fight_url": row["fight_url"],
+        }
+        for row in initial_rows
+    ]
+    metadata_df = pd.DataFrame(
+        metadata_rows,
+        columns=["Date", "RedFighter", "BlueFighter", "event_name", "event_url", "fight_url"],
+    )
+    metadata_df.to_csv(UPCOMING_METADATA_CSV_PATH, index=False)
+    return UPCOMING_METADATA_CSV_PATH
+
+
+def load_upcoming_with_metadata() -> pd.DataFrame:
+    ensure_file_exists(UPCOMING_FIGHTS_CSV_PATH, "upcoming fights CSV")
+    ensure_file_exists(UPCOMING_METADATA_CSV_PATH, "upcoming fight metadata CSV")
+
+    upcoming_df = pd.read_csv(UPCOMING_FIGHTS_CSV_PATH)
+    metadata_df = pd.read_csv(UPCOMING_METADATA_CSV_PATH)
+
+    upcoming_df = upcoming_df.copy()
+    upcoming_df["Date"] = pd.to_datetime(upcoming_df["Date"]).dt.date
+    metadata_df["Date"] = pd.to_datetime(metadata_df["Date"]).dt.date
+
+    merged_df = upcoming_df.merge(
+        metadata_df,
+        on=["Date", "RedFighter", "BlueFighter"],
+        how="left",
+        validate="one_to_one",
+    )
+
+    if merged_df["fight_url"].isna().any():
+        missing_rows = merged_df.loc[merged_df["fight_url"].isna(), ["Date", "RedFighter", "BlueFighter"]]
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": "Upcoming metadata is missing one or more fight URLs",
+                "missing_fights": [
+                    f"{row.Date.isoformat()} | {row.RedFighter} vs {row.BlueFighter}" for row in missing_rows.itertuples()
+                ],
+            },
+        )
+
+    return merged_df
+
+
+def finish_upcoming_fights() -> tuple[pd.DataFrame, list[str]]:
+    merged_df = load_upcoming_with_metadata()
+    session = create_session()
+
+    completed_rows: list[dict[str, Any]] = []
+    completed_fights: list[str] = []
+    pending_fights: list[str] = []
+    unsupported_results: list[str] = []
+
+    for row in merged_df.itertuples(index=False):
+        fight_detail = parse_fight_detail(session, row.fight_url)
+        identifier = f"{row.Date.isoformat()} | {row.RedFighter} vs {row.BlueFighter}"
+        red_status = fight_detail.get("red_status", "")
+        blue_status = fight_detail.get("blue_status", "")
+
+        if not red_status and not blue_status and not fight_detail.get("method"):
+            pending_fights.append(identifier)
+            continue
+        if red_status != "W" and blue_status != "W":
+            unsupported_results.append(f"{identifier} ({red_status or 'unknown'} / {blue_status or 'unknown'})")
+            continue
+
+        row_dict = row._asdict()
+        red_winner = red_status == "W"
+        row_dict["RedWinner"] = red_winner
+        row_dict["RedReturn"] = american_profit_multiple(row_dict["RedOdds"], red_winner)
+        row_dict["BlueReturn"] = american_profit_multiple(row_dict["BlueOdds"], not red_winner)
+        completed_rows.append({column: row_dict[column] for column in RECENT_COLUMNS})
+        completed_fights.append(identifier)
+
+    if pending_fights:
+        raise HTTPException(
+            status_code=409,
+            detail={"message": "One or more upcoming fights are not finished on UFC Stats yet", "pending_fights": pending_fights},
+        )
+    if unsupported_results:
+        raise HTTPException(
+            status_code=409,
+            detail={"message": "One or more fights do not have a supported winner outcome", "unsupported_fights": unsupported_results},
+        )
+
+    completed_df = pd.DataFrame(completed_rows, columns=RECENT_COLUMNS)
+    completed_df.to_csv(UPCOMING_FIGHTS_CSV_PATH, index=False)
+    return completed_df, completed_fights
+
+
+def get_csv_path_for_source(source: str) -> str:
+    return RECENT_FIGHTS_CSV_PATH if source == "recent" else UPCOMING_FIGHTS_CSV_PATH
+
+
+def to_python_value(value: Any) -> Any:
+    if pd.isna(value):
+        return None
+    if isinstance(value, pd.Timestamp):
+        return value.date()
+    item = getattr(value, "item", None)
+    return item() if callable(item) else value
+
+
+def build_duplicate_keys(df: pd.DataFrame) -> set[tuple[Any, Any, Any, Any]]:
+    key_rows = df[["Date", "RedFighter", "BlueFighter", "WeightClass"]].copy()
+    key_rows["Date"] = pd.to_datetime(key_rows["Date"]).dt.date
+    return {
+        (row.Date, row.RedFighter, row.BlueFighter, row.WeightClass)
+        for row in key_rows.itertuples(index=False)
+    }
+
+
+def fetch_existing_fight_keys(conn, dates: list[date]) -> set[tuple[Any, Any, Any, Any]]:
+    if not dates:
+        return set()
+
+    query = """
+        SELECT fight_date, red_fighter, blue_fighter, weight_class
+        FROM public.all_fights
+        WHERE fight_date = ANY(%s)
+    """
+    with conn.cursor() as cur:
+        cur.execute(query, (dates,))
+        return {(row[0], row[1], row[2], row[3]) for row in cur.fetchall()}
+
+
+@app.get("/health", response_model=HealthResponse)
+def health() -> HealthResponse:
+    return HealthResponse(status="ok")
+
+
+@app.post("/admin/recent-fights/scrape", response_model=ScrapeResponse)
+def scrape_recent_fights(payload: RecentScrapeRequest) -> ScrapeResponse:
+    start_date = payload.start_date
+    if start_date is None:
+        latest_fight_date = lookup_database_latest_fight_date()
+        start_date = parse_us_date(latest_fight_date) if latest_fight_date else parse_us_date(DEFAULT_START_DATE)
+
+    summary = run_recent_scrape(start_date)
+    return ScrapeResponse(
+        message="Recent fights CSV refreshed",
+        output_path=summary["recent_fights_csv"],
+        row_count=summary["fight_rows"],
+        missing_data_report=summary["missing_data_report"],
+        missing_columns_summary=summary["missing_columns_summary"],
+        missing_odds_report=summary["missing_odds_report"],
+        start_date=summary["start_date"],
+        database_latest_fight_date=summary["database_latest_fight_date"],
+    )
+
+
+@app.post("/admin/upcoming-fights/scrape", response_model=ScrapeResponse)
+def scrape_upcoming_fights() -> ScrapeResponse:
+    summary = run_upcoming_scrape()
+    metadata_path = build_upcoming_metadata(summary["initial_rows"])
+    return ScrapeResponse(
+        message="Upcoming fights CSV refreshed",
+        output_path=summary["upcoming_fights_csv"],
+        row_count=summary["fight_rows"],
+        metadata_path=metadata_path,
+        missing_data_report=summary["missing_data_report"],
+        missing_columns_summary=summary["missing_columns_summary"],
+        missing_odds_report=summary["missing_odds_report"],
+        event_name=summary["event_name"],
+        event_date=summary["event_date"],
+    )
+
+
+@app.post("/admin/upcoming-fights/finish", response_model=FinishResponse)
+def finish_upcoming_fights_route() -> FinishResponse:
+    completed_df, completed_fights = finish_upcoming_fights()
+    return FinishResponse(
+        message="Upcoming fights CSV finished with results and returns",
+        output_path=UPCOMING_FIGHTS_CSV_PATH,
+        row_count=len(completed_df),
+        completed_fights=completed_fights,
+    )
+
+
+@app.post("/admin/fights/load", response_model=LoadResponse)
+def load_fights(payload: SourceLoadRequest, conn=Depends(get_db_connection)) -> LoadResponse:
+    csv_path = get_csv_path_for_source(payload.source)
+    ensure_file_exists(csv_path, f"{payload.source} fights CSV")
+    df = validate_load_ready_dataframe(pd.read_csv(csv_path), f"{payload.source} fights CSV")
+
+    candidate_keys = build_duplicate_keys(df)
+    existing_keys = fetch_existing_fight_keys(conn, sorted({key[0] for key in candidate_keys}))
+    duplicate_keys = candidate_keys & existing_keys
+
+    duplicate_fights = [
+        f"{fight_date.isoformat()} | {red_fighter} vs {blue_fighter} | {weight_class}"
+        for fight_date, red_fighter, blue_fighter, weight_class in sorted(duplicate_keys)
+    ]
+
+    inserted_count = 0
+    with conn.cursor() as cur:
+        for _, row in df.iterrows():
+            fight_key = (
+                pd.to_datetime(row["Date"]).date(),
+                row["RedFighter"],
+                row["BlueFighter"],
+                row["WeightClass"],
+            )
+            if fight_key in duplicate_keys:
+                continue
+
+            values = [to_python_value(row[csv_column]) for csv_column, _ in CSV_TO_DB_COLUMNS]
+            values.append(os.path.basename(csv_path))
+            cur.execute(UPSERT_SQL, values)
+            inserted_count += cur.rowcount
+        conn.commit()
+
+    return LoadResponse(
+        message="Fight CSV load complete",
+        source=payload.source,
+        csv_path=csv_path,
+        inserted_count=inserted_count,
+        skipped_duplicate_count=len(duplicate_fights),
+        duplicate_fights=duplicate_fights,
+    )

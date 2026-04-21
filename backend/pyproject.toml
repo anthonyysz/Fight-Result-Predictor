@@ -9,9 +9,11 @@ description = "Backend packages and scrapers for fight-result-predictor."
 requires-python = ">=3.11"
 dependencies = [
     "beautifulsoup4",
+    "fastapi",
     "pandas",
     "requests",
     "psycopg[binary]",
+    "uvicorn[standard]",
 ]
 
 [tool.setuptools]
@@ -19,4 +21,4 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["historical_scraper*", "upcoming_scraper*"]
+include = ["historical_scraper*", "upcoming_scraper*", "api*"]

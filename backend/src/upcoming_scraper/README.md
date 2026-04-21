@@ -10,7 +10,7 @@ This scraper builds `backend/data/generated/upcoming_scraper/upcoming_fights.csv
    - `FanDuel`, then `BetUS`, then `MyBookieAG`, then `MyBookie`
    - If none exist, the odds stay null and the fight is listed in `backend/data/generated/upcoming_scraper/missing_data/missing_odds_report.csv`
 3. `rankings_scraper.py`
-   - Fills rankings from `backend/data/reference/historical_scraper/rankings_history.csv`
+   - Fills rankings from `backend/data/reference/rankings_history.csv`
    - Unranked fighters are filled as `20`
 
 The scraper does not write to SQL and mirrors the historical scraper's dataframe shape, except that result-derived columns are omitted.

@@ -11,7 +11,6 @@ DEFAULT_ALIAS_CSV_PATH = os.path.join(
     BACKEND_DIR,
     "data",
     "reference",
-    "historical_scraper",
     "fighter_aliases.csv",
 )
 

@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS public.all_fights (
     blue_age integer NOT NULL,
     b_match_wc_rank integer NOT NULL,
     r_match_wc_rank integer NOT NULL,
-    source_name text NOT NULL DEFAULT 'df.csv',
+    source_name text NOT NULL DEFAULT 'testing.csv',
     loaded_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT all_fights_unique_fight UNIQUE (fight_date, red_fighter, blue_fighter, weight_class)
 );

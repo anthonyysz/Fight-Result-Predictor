@@ -10,7 +10,7 @@ This scraper builds `backend/data/generated/historical_scraper/recent_fights.csv
    - `FanDuel`, then `BetUS`, then `MyBookieAG`, then `MyBookie`
    - If none exist, the odds stay null and the fight is listed in `backend/data/generated/historical_scraper/missing_data/missing_odds_report.csv`
 3. `rankings_scraper.py`
-   - Fills historical rankings from `backend/data/reference/historical_scraper/rankings_history.csv`
+   - Fills historical rankings from `backend/data/reference/rankings_history.csv`
    - Unranked fighters are filled as `20`
 
 The scraper does not write to SQL and does not use the Kaggle reference dataset as an input source.

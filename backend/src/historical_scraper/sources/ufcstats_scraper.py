@@ -284,12 +284,17 @@ def parse_fight_detail(session: requests.Session, fight_url: str) -> dict[str, A
 
     persons = soup.select("div.b-fight-details__person")
     red_status = ""
+    blue_status = ""
     if len(persons) == 2:
         red_status_node = persons[0].select_one("i.b-fight-details__person-status")
         red_status = clean_text(red_status_node.get_text(" ", strip=True) if red_status_node else "")
+        blue_status_node = persons[1].select_one("i.b-fight-details__person-status")
+        blue_status = clean_text(blue_status_node.get_text(" ", strip=True) if blue_status_node else "")
 
     return {
         "red_winner": red_status == "W",
+        "red_status": red_status,
+        "blue_status": blue_status,
         "method": detail_map.get("Method", ""),
         "finish_details": finish_details,
         "finish_round": int(detail_map.get("Round", "0") or 0),

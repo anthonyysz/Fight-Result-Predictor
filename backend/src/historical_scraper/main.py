@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 import os
+from datetime import date
+from typing import Any
 
 from historical_scraper.core.csv_manager import (
     RECENT_FIGHTS_CSV_PATH,
@@ -20,7 +22,7 @@ from historical_scraper.sources.ufcstats_scraper import apply_ufcstats_data, ini
 DEFAULT_START_DATE = "2024-12-14"
 SCRAPER_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.normpath(os.path.join(SCRAPER_DIR, "..", ".."))
-REFERENCE_DATA_DIR = os.path.join(BACKEND_DIR, "data", "reference", "historical_scraper")
+REFERENCE_DATA_DIR = os.path.join(BACKEND_DIR, "data", "reference")
 SQL_ENV_PATH = os.path.join(BACKEND_DIR, ".env")
 
 # Adding a start date argument
@@ -36,9 +38,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> None:
-    args = parse_args()
-    start_date = parse_us_date(args.start_date)
+def run_recent_scrape(start_date: date) -> dict[str, Any]:
     # Checking when we need to start scraping from
     database_latest_fight_date = lookup_database_latest_fight_date()
 
@@ -52,17 +52,32 @@ def main() -> None:
 
     # Saving the dataframe and the missing data reports
     recent_df = finalize_recent_dataframe(df_internal)
-    save_recent_dataframe(recent_df)
+    recent_csv_path = save_recent_dataframe(recent_df)
     missing_report_path, missing_summary_path = save_missing_reports(recent_df)
     missing_odds_report_path = save_missing_odds_report(df_internal)
 
-    print(f"start_date: {start_date.isoformat()}")
-    print(f"database_latest_fight_date: {database_latest_fight_date or 'unavailable'}")
-    print(f"recent_fights_csv: {RECENT_FIGHTS_CSV_PATH}")
-    print(f"missing_data_report: {missing_report_path}")
-    print(f"missing_columns_summary: {missing_summary_path}")
-    print(f"missing_odds_report: {missing_odds_report_path}")
-    print(f"fight_rows: {len(recent_df)}")
+    return {
+        "start_date": start_date.isoformat(),
+        "database_latest_fight_date": database_latest_fight_date,
+        "recent_fights_csv": recent_csv_path,
+        "missing_data_report": missing_report_path,
+        "missing_columns_summary": missing_summary_path,
+        "missing_odds_report": missing_odds_report_path,
+        "fight_rows": len(recent_df),
+    }
+
+
+def main() -> None:
+    args = parse_args()
+    summary = run_recent_scrape(parse_us_date(args.start_date))
+
+    print(f"start_date: {summary['start_date']}")
+    print(f"database_latest_fight_date: {summary['database_latest_fight_date'] or 'unavailable'}")
+    print(f"recent_fights_csv: {summary['recent_fights_csv']}")
+    print(f"missing_data_report: {summary['missing_data_report']}")
+    print(f"missing_columns_summary: {summary['missing_columns_summary']}")
+    print(f"missing_odds_report: {summary['missing_odds_report']}")
+    print(f"fight_rows: {summary['fight_rows']}")
 
 # Checking for the most recent fight that's been added to the SQL database
 def lookup_database_latest_fight_date() -> str | None:

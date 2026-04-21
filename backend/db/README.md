@@ -2,13 +2,13 @@
 
 ## 1. Why?
 
-When I first began this project, I wanted to be able to visualize what I'd already seen. I downloaded a database and did some data exploration and modeling as a jumping off point. Now, since I want my model to live on a live server, I need my own database. Without jeopardizing the accuracy of the comments I made in those notebooks, df.csv will live separately from the constantly updating SQL database. The main table for our SQL workflow in Postgres will be 'public.all_fights'.
+When I first began this project, I wanted to be able to visualize what I'd already seen. I downloaded a database and did some data exploration and modeling as a jumping off point. Now, since I want my model to live on a live server, I need my own database. Without jeopardizing the accuracy of the comments I made in those notebooks, `testing.csv` will live separately from the constantly updating SQL database. The main table for our SQL workflow in Postgres will be `public.all_fights`.
 
 ## 2. Day-to-day workflow
 
-When looking at the notebooks and seeing a file df.csv, keep in mind
+When looking at the notebooks and seeing a file `testing.csv`, keep in mind
 
-- Keep notebooks pointed at `data/df.csv`
+- Keep notebooks pointed at `notebooks/data/testing.csv`
 - Keep new scraped and updated data in PostgreSQL
 - Scraper writes directly into `public.all_fights`
 
@@ -59,7 +59,7 @@ Update `backend/.env`:
 
 ```text
 DATABASE_URL=postgresql://username:password@your-rds-endpoint:5432/fight_data
-CSV_PATH=data/df.csv
+CSV_PATH=../notebooks/data/testing.csv
 ```
 
 Then have your future scraper or update workflow write to RDS instead of local PostgreSQL:
