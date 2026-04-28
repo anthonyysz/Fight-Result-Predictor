@@ -46,12 +46,31 @@ $env:PYTHONPATH = (Resolve-Path .\src).Path
 & "C:\Users\Anthony\GitHub\fight-result-predictor\.venv\Scripts\python.exe" -m uvicorn api.app:app --host 127.0.0.1 --port 8000 --reload
 ```
 
+```powershell
+psql $env:DATABASE_URL -c "SELECT fight_date, red_fighter, blue_fighter, weight_class, source_name FROM public.all_fights ORDER BY fight_date DESC LIMIT 20;"
+```
 
-
-
+To get to the database from powershell:
+```powershell
+psql $env:DATABASE_URL
+```
 
 
 Retrain models:
 ```powershell
 .venv\Scripts\python -m model_training.retrain_models
+```
+
+Use historical scraper:
+```powershell
+$env:PYTHONPATH = (Resolve-Path .\src).Path
+```
+```powershell
+& "C:\Users\Anthony\GitHub\fight-result-predictor\.venv\Scripts\python.exe" -m historical_scraper.main --start-date 2024-12-14
+```
+
+To load historical scraped data into RDS:
+Start the backend
+```powershell
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/admin/fights/load -ContentType "application/json" -Body '{"source":"recent"}'
 ```

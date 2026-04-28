@@ -84,7 +84,97 @@ CSV_TO_DB_COLUMNS = [
     ("BMatchWCRank", "b_match_wc_rank"),
     ("RMatchWCRank", "r_match_wc_rank"),
 ]
+
+UPCOMING_FIGHT_COLUMNS = [
+    "RedFighter",
+    "BlueFighter",
+    "RedOdds",
+    "BlueOdds",
+    "OddsDiff",
+    "AgeDiff",
+    "ReachDiff",
+    "HeightDiff",
+    "WinsDiff",
+    "LossesDiff",
+    "RoundsDiff",
+    "TitleBoutDiff",
+    "KODiff",
+    "SubmissionDiff",
+    "WinStreakDiff",
+    "LoseStreakDiff",
+    "LongestWinStreakDiff",
+    "SigStrDiff",
+    "SubAttDiff",
+    "TDDiff",
+    "RankDiff",
+    "Date",
+    "TitleBout",
+    "WeightClass",
+    "Gender",
+    "NumberOfRounds",
+    "BlueCurrentLoseStreak",
+    "BlueCurrentWinStreak",
+    "BlueLongestWinStreak",
+    "BlueLosses",
+    "BlueTotalRoundsFought",
+    "BlueTotalTitleBouts",
+    "BlueWinsByKO",
+    "BlueWinsBySubmission",
+    "BlueWins",
+    "BlueStance",
+    "BlueHeightCms",
+    "BlueReachCms",
+    "RedCurrentLoseStreak",
+    "RedCurrentWinStreak",
+    "RedLongestWinStreak",
+    "RedLosses",
+    "RedTotalRoundsFought",
+    "RedTotalTitleBouts",
+    "RedWinsByKO",
+    "RedWinsBySubmission",
+    "RedWins",
+    "RedStance",
+    "RedHeightCms",
+    "RedReachCms",
+    "RedAge",
+    "BlueAge",
+    "BMatchWCRank",
+    "RMatchWCRank",
+]
+
+UPCOMING_METADATA_COLUMNS = [
+    "Date",
+    "RedFighter",
+    "BlueFighter",
+    "event_name",
+    "event_url",
+    "fight_url",
+]
+
 DB_COLUMNS = [db_column for _, db_column in CSV_TO_DB_COLUMNS] + ["source_name"]
+UPCOMING_EXCLUDED_CSV_COLUMNS = {"RedWinner", "RedReturn", "BlueReturn"}
+
+UPCOMING_CSV_TO_DB_COLUMNS = [
+    (csv_column, db_column)
+    for csv_column, db_column in CSV_TO_DB_COLUMNS
+    if csv_column not in UPCOMING_EXCLUDED_CSV_COLUMNS
+]
+
+UPCOMING_METADATA_CSV_TO_DB_COLUMNS = [
+    ("Date", "fight_date"),
+    ("RedFighter", "red_fighter"),
+    ("BlueFighter", "blue_fighter"),
+    ("event_name", "event_name"),
+    ("event_url", "event_url"),
+    ("fight_url", "fight_url"),
+]
+
+UPCOMING_DB_COLUMNS = [db_column for _, db_column in UPCOMING_CSV_TO_DB_COLUMNS] + ["source_name"]
+UPCOMING_METADATA_DB_COLUMNS = [db_column for _, db_column in UPCOMING_METADATA_CSV_TO_DB_COLUMNS] + ["source_name"]
+
+UPCOMING_FIGHT_KEY_COLUMNS = {"fight_date", "red_fighter", "blue_fighter", "weight_class"}
+UPCOMING_METADATA_KEY_COLUMNS = {"fight_date", "red_fighter", "blue_fighter"}
+
 UPSERT_SQL = (
     f"INSERT INTO public.all_fights ({', '.join(DB_COLUMNS)}) "
     f"VALUES ({', '.join(['%s'] * len(DB_COLUMNS))}) "
