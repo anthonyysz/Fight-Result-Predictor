@@ -124,15 +124,15 @@ ESTIMATOR_PARAM_GRIDS = {
 
 MODEL_BUILDERS = {
     "logreg": lambda params: LogisticRegression(max_iter=3000, random_state=42, **params),
-    "rf": lambda params: RandomForestClassifier(random_state=42, n_jobs=-1, **params),
-    "extra_trees": lambda params: ExtraTreesClassifier(random_state=42, n_jobs=-1, **params),
+    "rf": lambda params: RandomForestClassifier(random_state=42, n_jobs=1, **params),
+    "extra_trees": lambda params: ExtraTreesClassifier(random_state=42, n_jobs=1, **params),
     "gb": lambda params: GradientBoostingClassifier(random_state=42, **params),
     "hist_gb": lambda params: HistGradientBoostingClassifier(random_state=42, **params),
     "ada": lambda params: AdaBoostClassifier(random_state=42, **params),
     "xgb": lambda params: XGBClassifier(
         random_state=42,
         eval_metric="logloss",
-        n_jobs=4,
+        n_jobs=1,
         subsample=0.8,
         colsample_bytree=0.8,
         reg_lambda=1.0,
@@ -350,8 +350,6 @@ def normalize_training_frame(df: pd.DataFrame) -> pd.DataFrame:
     normalized = normalized[TRAINING_COLUMNS].copy()
     return normalized
 
-raw_df = fetch_training_frame()
-
 # SECTION 4: THRESHOLD GRID AND BETTING ODDS
 
 THRESHOLD_GRID = np.round(np.linspace(-0.02, 0.20, 45), 3)
@@ -391,7 +389,7 @@ def tune_threshold(proba_red, odds_frame, min_bets):
 
 def prepare_feature_frame(frame):
     """Creates model features and sportsbook implied probability columns"""
-    DIFF_FEATURE_COLS = [c for c in raw_df.columns if c.endswith("Diff")]
+    DIFF_FEATURE_COLS = [c for c in frame.columns if c.endswith("Diff")]
     BASE_FEATURE_COLS = ["RedOdds", "BlueOdds", *DIFF_FEATURE_COLS, "TitleBout", "NumberOfRounds"]
     X = frame.reindex(columns=BASE_FEATURE_COLS).copy()
 
@@ -1033,6 +1031,29 @@ def upload_models_to_s3(saved_model_rows: list[dict]) -> list[dict]:
 
     return uploaded_rows
 
+#Saving my final summary
+FINAL_SUMMARY_CSV_NAME = "final_summary.csv"
+
+def save_final_summary_locally(final_summary: pd.DataFrame) -> str:
+    MODELS_PATH.mkdir(exist_ok=True)
+    save_path = MODELS_PATH / FINAL_SUMMARY_CSV_NAME
+    final_summary.to_csv(save_path, index=False)
+    return str(save_path)
+
+def upload_file_to_s3(local_path: str, file_name: str) -> dict:
+    bucket, prefix = get_model_storage_settings()
+    s3 = boto3.client("s3")
+    s3_key = f"{prefix}/{file_name}"
+    s3.upload_file(local_path, bucket, s3_key)
+    return {
+        "local_path": local_path,
+        "file_name": file_name,
+        "s3_bucket": bucket,
+        "s3_key": s3_key,
+        "s3_uri": f"s3://{bucket}/{s3_key}",
+    }
+
+# SECTION 14: MAIN FUNCTION
 def main() -> None:
     raw_df = fetch_training_frame()
 
@@ -1041,13 +1062,14 @@ def main() -> None:
     print(f"min_date: {raw_df['Date'].min()}")
     print(f"max_date: {raw_df['Date'].max()}")
 
-    global_results = run_global_backtests(raw_df)
-    print(f"global_backtest_rows: {len(global_results)}")
-
     weight_results = run_weight_class_backtests(raw_df)
     print(f"weight_backtest_rows: {len(weight_results)}")
 
     final_specs, final_summary = select_best_weight_class_models(raw_df, weight_results)
+    final_summary_path = save_final_summary_locally(final_summary)
+    print(final_summary.to_string(index=False))
+    print(f"final_summary_csv: {final_summary_path}")
+
     print(final_summary)
 
     deployment_registry, deployment_df = build_deployment_registry(raw_df, final_specs)
@@ -1057,6 +1079,7 @@ def main() -> None:
     print(pd.DataFrame(saved_model_rows))
 
     uploaded_model_rows = upload_models_to_s3(saved_model_rows)
+    uploaded_summary = upload_file_to_s3(final_summary_path, FINAL_SUMMARY_CSV_NAME)
     print(pd.DataFrame(uploaded_model_rows))
 
     print("Retraining complete.")

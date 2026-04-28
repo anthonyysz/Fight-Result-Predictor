@@ -5,11 +5,11 @@ This folder holds the Python side of the project.
 ## Layout
 
 - `src/historical_scraper/`
-  - Current working scraper package for completed UFC events
+  - Scraps past UFC events, starting at a certain date through present day
 - `src/upcoming_scraper/`
-  - Reserved spot for the future upcoming-fights scraper
+  - Scrapes the next upcoming event only
 - `src/api/`
-  - Reserved spot for the future backend application or API
+  - 
 - `data/reference/`
   - Source files the scraper reads, such as `fighter_aliases.csv` and `rankings_history.csv`
 - `data/generated/`
@@ -25,4 +25,33 @@ From the repo root:
 
 ```powershell
 .venv\Scripts\pip install -e .\backend
+```
+## Load
+
+From backend directory:
+```powershell
+Invoke-WebRequest -Uri http://127.0.0.1:8000/health -UseBasicParsing
+```
+
+To clear it:
+```powershell
+Stop-Process -Id 29604
+```
+
+To start it:
+```powershell
+$env:PYTHONPATH = (Resolve-Path .\src).Path
+```
+```powershell
+& "C:\Users\Anthony\GitHub\fight-result-predictor\.venv\Scripts\python.exe" -m uvicorn api.app:app --host 127.0.0.1 --port 8000 --reload
+```
+
+
+
+
+
+
+Retrain models:
+```powershell
+.venv\Scripts\python -m model_training.retrain_models
 ```
