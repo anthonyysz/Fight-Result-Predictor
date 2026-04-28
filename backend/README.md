@@ -74,3 +74,16 @@ Start the backend
 ```powershell
 Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/admin/fights/load -ContentType "application/json" -Body '{"source":"recent"}'
 ```
+Load from testing.csv database
+```powershell
+Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8000/admin/fights/load' -ContentType 'application/json' -Body '{"source":"testing"}'
+```
+
+Load upcoming fights
+```powershell
+Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8000/admin/fights/load' -ContentType 'application/json' -Body '{"source":"upcoming_fights"}'
+```
+Load upcoming metadata
+```powershell
+Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8000/admin/fights/load' -ContentType 'application/json' -Body '{"source":"upcoming_metadata"}'
+```
