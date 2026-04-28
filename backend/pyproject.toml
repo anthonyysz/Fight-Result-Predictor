@@ -14,6 +14,11 @@ dependencies = [
     "requests",
     "psycopg[binary]",
     "uvicorn[standard]",
+    "numpy",
+    "scikit-learn",
+    "xgboost",
+    "joblib",
+    "boto3",
 ]
 
 [tool.setuptools]
@@ -21,4 +26,4 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["historical_scraper*", "upcoming_scraper*", "api*"]
+include = ["historical_scraper*", "upcoming_scraper*", "api*", "model_training*"]
