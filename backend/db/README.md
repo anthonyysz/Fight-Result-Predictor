@@ -53,14 +53,13 @@ After creation, copy:
 psql --host=<rds-endpoint> --port=5432 --username=<username> --dbname=fight_data
 ```
 
-### 4. Point your app or scraper at RDS
+### 4. Point your app at RDS
 
 Update `backend/.env`:
 
 ```text
 DATABASE_URL=postgresql://username:password@your-rds-endpoint:5432/fight_data
 CSV_PATH=../notebooks/data/testing.csv
-```
 
 Then have your future scraper or update workflow write to RDS instead of local PostgreSQL:
 

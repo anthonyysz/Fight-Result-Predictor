@@ -21,6 +21,7 @@ BACKEND_DIR = os.path.normpath(os.path.join(APP_DIR, "..", ".."))
 SQL_ENV_PATH = os.path.join(BACKEND_DIR, ".env")
 RECENT_FIGHTS_CSV_PATH = os.path.join(BACKEND_DIR, "data", "generated", "historical_scraper", "recent_fights.csv")
 UPCOMING_FIGHTS_CSV_PATH = os.path.join(BACKEND_DIR, "data", "generated", "upcoming_scraper", "upcoming_fights.csv")
+TESTING_CSV_PATH = os.path.normpath(os.path.join(BACKEND_DIR, "..", "notebooks", "data", "testing.csv"))
 UPCOMING_METADATA_CSV_PATH = os.path.join(
     BACKEND_DIR, "data", "generated", "upcoming_scraper", "upcoming_fights_metadata.csv"
 )
@@ -102,7 +103,7 @@ class RecentScrapeRequest(BaseModel):
 
 
 class SourceLoadRequest(BaseModel):
-    source: Literal["recent", "upcoming"]
+    source: Literal["recent", "upcoming", "testing"]
 
 
 class ScrapeResponse(BaseModel):
@@ -132,7 +133,9 @@ class LoadResponse(BaseModel):
     csv_path: str
     inserted_count: int
     skipped_duplicate_count: int
+    skipped_incomplete_count: int
     duplicate_fights: list[str]
+    incomplete_fights: list[str]
 
 
 def get_conninfo() -> str:
@@ -173,7 +176,8 @@ def ensure_file_exists(path: str, label: str) -> None:
         raise HTTPException(status_code=404, detail=f"Missing {label}: {path}")
 
 
-def validate_load_ready_dataframe(df: pd.DataFrame, label: str) -> pd.DataFrame:
+REQUIRED_DB_CSV_COLUMNS = [csv_column for csv_column, _ in CSV_TO_DB_COLUMNS]
+def validate_load_ready_columns(df: pd.DataFrame, label: str) -> pd.DataFrame:
     actual_columns = list(df.columns)
     if actual_columns != RECENT_COLUMNS:
         raise HTTPException(
@@ -185,18 +189,24 @@ def validate_load_ready_dataframe(df: pd.DataFrame, label: str) -> pd.DataFrame:
             },
         )
 
-    missing_counts = df[RECENT_COLUMNS].isna().sum()
-    columns_with_missing = [column for column, count in missing_counts.items() if int(count) > 0]
-    if columns_with_missing:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "message": f"{label} contains missing values and should be reviewed before loading",
-                "columns_with_missing_values": columns_with_missing,
-            },
+    return df.copy()
+
+
+def build_incomplete_fight_messages(df: pd.DataFrame) -> list[str]:
+    incomplete_fights: list[str] = []
+
+    for _, row in df.iterrows():
+        missing_columns = [column for column in REQUIRED_DB_CSV_COLUMNS if pd.isna(row[column])]
+        if not missing_columns:
+            continue
+
+        fight_date = pd.to_datetime(row["Date"]).date().isoformat()
+        incomplete_fights.append(
+            f"{fight_date} | {row['RedFighter']} vs {row['BlueFighter']} | "
+            f"{row['WeightClass']} | missing: {', '.join(missing_columns)}"
         )
 
-    return df.copy()
+    return incomplete_fights
 
 
 def build_upcoming_metadata(initial_rows: list[dict[str, Any]]) -> str:
@@ -299,7 +309,11 @@ def finish_upcoming_fights() -> tuple[pd.DataFrame, list[str]]:
 
 
 def get_csv_path_for_source(source: str) -> str:
-    return RECENT_FIGHTS_CSV_PATH if source == "recent" else UPCOMING_FIGHTS_CSV_PATH
+    if source == "recent":
+        return RECENT_FIGHTS_CSV_PATH
+    if source == "testing":
+        return TESTING_CSV_PATH
+    return UPCOMING_FIGHTS_CSV_PATH
 
 
 def to_python_value(value: Any) -> Any:
@@ -391,7 +405,11 @@ def finish_upcoming_fights_route() -> FinishResponse:
 def load_fights(payload: SourceLoadRequest, conn=Depends(get_db_connection)) -> LoadResponse:
     csv_path = get_csv_path_for_source(payload.source)
     ensure_file_exists(csv_path, f"{payload.source} fights CSV")
-    df = validate_load_ready_dataframe(pd.read_csv(csv_path), f"{payload.source} fights CSV")
+    df = validate_load_ready_columns(pd.read_csv(csv_path), f"{payload.source} fights CSV")
+
+    incomplete_fights = build_incomplete_fight_messages(df)
+    complete_mask = df[REQUIRED_DB_CSV_COLUMNS].notna().all(axis=1)
+    df = df.loc[complete_mask].copy()
 
     candidate_keys = build_duplicate_keys(df)
     existing_keys = fetch_existing_fight_keys(conn, sorted({key[0] for key in candidate_keys}))
@@ -426,5 +444,7 @@ def load_fights(payload: SourceLoadRequest, conn=Depends(get_db_connection)) -> 
         csv_path=csv_path,
         inserted_count=inserted_count,
         skipped_duplicate_count=len(duplicate_fights),
+        skipped_incomplete_count=len(incomplete_fights),
         duplicate_fights=duplicate_fights,
+        incomplete_fights=incomplete_fights,
     )
