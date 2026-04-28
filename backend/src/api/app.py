@@ -85,72 +85,6 @@ CSV_TO_DB_COLUMNS = [
     ("RMatchWCRank", "r_match_wc_rank"),
 ]
 
-UPCOMING_FIGHT_COLUMNS = [
-    "RedFighter",
-    "BlueFighter",
-    "RedOdds",
-    "BlueOdds",
-    "OddsDiff",
-    "AgeDiff",
-    "ReachDiff",
-    "HeightDiff",
-    "WinsDiff",
-    "LossesDiff",
-    "RoundsDiff",
-    "TitleBoutDiff",
-    "KODiff",
-    "SubmissionDiff",
-    "WinStreakDiff",
-    "LoseStreakDiff",
-    "LongestWinStreakDiff",
-    "SigStrDiff",
-    "SubAttDiff",
-    "TDDiff",
-    "RankDiff",
-    "Date",
-    "TitleBout",
-    "WeightClass",
-    "Gender",
-    "NumberOfRounds",
-    "BlueCurrentLoseStreak",
-    "BlueCurrentWinStreak",
-    "BlueLongestWinStreak",
-    "BlueLosses",
-    "BlueTotalRoundsFought",
-    "BlueTotalTitleBouts",
-    "BlueWinsByKO",
-    "BlueWinsBySubmission",
-    "BlueWins",
-    "BlueStance",
-    "BlueHeightCms",
-    "BlueReachCms",
-    "RedCurrentLoseStreak",
-    "RedCurrentWinStreak",
-    "RedLongestWinStreak",
-    "RedLosses",
-    "RedTotalRoundsFought",
-    "RedTotalTitleBouts",
-    "RedWinsByKO",
-    "RedWinsBySubmission",
-    "RedWins",
-    "RedStance",
-    "RedHeightCms",
-    "RedReachCms",
-    "RedAge",
-    "BlueAge",
-    "BMatchWCRank",
-    "RMatchWCRank",
-]
-
-UPCOMING_METADATA_COLUMNS = [
-    "Date",
-    "RedFighter",
-    "BlueFighter",
-    "event_name",
-    "event_url",
-    "fight_url",
-]
-
 DB_COLUMNS = [db_column for _, db_column in CSV_TO_DB_COLUMNS] + ["source_name"]
 UPCOMING_EXCLUDED_CSV_COLUMNS = {"RedWinner", "RedReturn", "BlueReturn"}
 
@@ -172,14 +106,54 @@ UPCOMING_METADATA_CSV_TO_DB_COLUMNS = [
 UPCOMING_DB_COLUMNS = [db_column for _, db_column in UPCOMING_CSV_TO_DB_COLUMNS] + ["source_name"]
 UPCOMING_METADATA_DB_COLUMNS = [db_column for _, db_column in UPCOMING_METADATA_CSV_TO_DB_COLUMNS] + ["source_name"]
 
-UPCOMING_FIGHT_KEY_COLUMNS = {"fight_date", "red_fighter", "blue_fighter", "weight_class"}
-UPCOMING_METADATA_KEY_COLUMNS = {"fight_date", "red_fighter", "blue_fighter"}
-
 UPSERT_SQL = (
     f"INSERT INTO public.all_fights ({', '.join(DB_COLUMNS)}) "
     f"VALUES ({', '.join(['%s'] * len(DB_COLUMNS))}) "
     "ON CONFLICT ON CONSTRAINT all_fights_unique_fight DO NOTHING"
 )
+
+UPSERT_UPCOMING = (
+    f"INSERT INTO public.upcoming_fights ({', '.join(UPCOMING_DB_COLUMNS)}) "
+    f"VALUES ({', '.join(['%s'] * len(UPCOMING_DB_COLUMNS))}) "
+    "ON CONFLICT ON CONSTRAINT upcoming_fights_unique_fight DO NOTHING"
+)
+
+UPSERT_UPCOMING_METADATA = (
+    f"INSERT INTO public.upcoming_metadata ({', '.join(UPCOMING_METADATA_DB_COLUMNS)}) "
+    f"VALUES ({', '.join(['%s'] * len(UPCOMING_METADATA_DB_COLUMNS))}) "
+    "ON CONFLICT ON CONSTRAINT upcoming_metadata_unique_fight DO NOTHING"
+)
+
+LOAD_CONFIG = {
+    "recent": {
+        "csv_path": RECENT_FIGHTS_CSV_PATH,
+        "expected_columns": [csv for csv, _ in CSV_TO_DB_COLUMNS],
+        "column_mapping": CSV_TO_DB_COLUMNS,
+        "upsert_sql": UPSERT_SQL,
+        "table_kind": "all_fights",
+    },
+    "testing": {
+        "csv_path": TESTING_CSV_PATH,
+        "expected_columns": RECENT_COLUMNS,
+        "column_mapping": CSV_TO_DB_COLUMNS,
+        "upsert_sql": UPSERT_SQL,
+        "table_kind": "all_fights",
+    },
+    "upcoming_fights": {
+        "csv_path": UPCOMING_FIGHTS_CSV_PATH,
+        "expected_columns": [csv for csv, _ in UPCOMING_CSV_TO_DB_COLUMNS],
+        "column_mapping": UPCOMING_CSV_TO_DB_COLUMNS,
+        "upsert_sql": UPSERT_UPCOMING,
+        "table_kind": "upcoming_fights",
+    },
+    "upcoming_metadata": {
+        "csv_path": UPCOMING_METADATA_CSV_PATH,
+        "expected_columns": [csv for csv, _ in UPCOMING_METADATA_CSV_TO_DB_COLUMNS],
+        "column_mapping": UPCOMING_METADATA_CSV_TO_DB_COLUMNS,
+        "upsert_sql": UPSERT_UPCOMING_METADATA,
+        "table_kind": "upcoming_metadata",
+    },
+}
 
 app = FastAPI(title="Fight Result Predictor Admin API", version="0.1.0")
 
@@ -193,7 +167,7 @@ class RecentScrapeRequest(BaseModel):
 
 
 class SourceLoadRequest(BaseModel):
-    source: Literal["recent", "upcoming", "testing"]
+    source: Literal["recent", "upcoming_fights", "testing", "upcoming_metadata"]
 
 
 class ScrapeResponse(BaseModel):
@@ -281,6 +255,32 @@ def validate_load_ready_columns(df: pd.DataFrame, label: str) -> pd.DataFrame:
 
     return df.copy()
 
+def validate_exact_columns(df: pd.DataFrame, expected_columns: list[str], label: str) -> pd.DataFrame:
+    actual_columns = list(df.columns)
+    if actual_columns != expected_columns:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": f"{label} must match the exact expected schema",
+                "expected_columns": expected_columns,
+                "actual_columns": actual_columns,
+            },
+        )
+    return df.copy()
+
+def build_db_records(
+    df: pd.DataFrame,
+    column_mapping: list[tuple[str, str]],
+    source_name: str,
+) -> list[tuple[Any, ...]]:
+    records: list[tuple[Any, ...]] = []
+
+    for _, row in df.iterrows():
+        values = [to_python_value(row[csv_column]) for csv_column, _ in column_mapping]
+        values.append(source_name)
+        records.append(tuple(values))
+
+    return records
 
 def build_incomplete_fight_messages(df: pd.DataFrame) -> list[str]:
     incomplete_fights: list[str] = []
@@ -397,15 +397,6 @@ def finish_upcoming_fights() -> tuple[pd.DataFrame, list[str]]:
     completed_df.to_csv(UPCOMING_FIGHTS_CSV_PATH, index=False)
     return completed_df, completed_fights
 
-
-def get_csv_path_for_source(source: str) -> str:
-    if source == "recent":
-        return RECENT_FIGHTS_CSV_PATH
-    if source == "testing":
-        return TESTING_CSV_PATH
-    return UPCOMING_FIGHTS_CSV_PATH
-
-
 def to_python_value(value: Any) -> Any:
     if pd.isna(value):
         return None
@@ -493,48 +484,70 @@ def finish_upcoming_fights_route() -> FinishResponse:
 
 @app.post("/admin/fights/load", response_model=LoadResponse)
 def load_fights(payload: SourceLoadRequest, conn=Depends(get_db_connection)) -> LoadResponse:
-    csv_path = get_csv_path_for_source(payload.source)
+    config=LOAD_CONFIG[payload.source]
+    csv_path = config["csv_path"]
     ensure_file_exists(csv_path, f"{payload.source} fights CSV")
-    df = validate_load_ready_columns(pd.read_csv(csv_path), f"{payload.source} fights CSV")
+    
+    df = pd.read_csv(csv_path)
+    
+    if config["table_kind"] == "all_fights":
+        df = validate_exact_columns(df, config["expected_columns"], f"{payload.source} CSV")
+        incomplete_fights = build_incomplete_fight_messages(df)
+        complete_mask = df[REQUIRED_DB_CSV_COLUMNS].notna().all(axis=1)
+        df = df.loc[complete_mask].copy()
 
-    incomplete_fights = build_incomplete_fight_messages(df)
-    complete_mask = df[REQUIRED_DB_CSV_COLUMNS].notna().all(axis=1)
-    df = df.loc[complete_mask].copy()
+        candidate_keys = build_duplicate_keys(df)
+        existing_keys = fetch_existing_fight_keys(conn, sorted({key[0] for key in candidate_keys}))
+        duplicate_keys = candidate_keys & existing_keys
 
-    candidate_keys = build_duplicate_keys(df)
-    existing_keys = fetch_existing_fight_keys(conn, sorted({key[0] for key in candidate_keys}))
-    duplicate_keys = candidate_keys & existing_keys
+        duplicate_fights = [
+            f"{fight_date.isoformat()} | {red_fighter} vs {blue_fighter} | {weight_class}"
+            for fight_date, red_fighter, blue_fighter, weight_class in sorted(duplicate_keys)
+        ]
 
-    duplicate_fights = [
-        f"{fight_date.isoformat()} | {red_fighter} vs {blue_fighter} | {weight_class}"
-        for fight_date, red_fighter, blue_fighter, weight_class in sorted(duplicate_keys)
-    ]
+        inserted_count = 0
+        with conn.cursor() as cur:
+            for _, row in df.iterrows():
+                fight_key = (
+                    pd.to_datetime(row["Date"]).date(),
+                    row["RedFighter"],
+                    row["BlueFighter"],
+                    row["WeightClass"],
+                )
+                if fight_key in duplicate_keys:
+                    continue
 
-    inserted_count = 0
+                values = [to_python_value(row[csv_column]) for csv_column, _ in config["column_mapping"]]
+                values.append(os.path.basename(csv_path))
+                cur.execute(config["upsert_sql"], values)
+                inserted_count += cur.rowcount
+            conn.commit()
+
+        return LoadResponse(
+            message="Fight CSV load complete",
+            source=payload.source,
+            csv_path=csv_path,
+            inserted_count=inserted_count,
+            skipped_duplicate_count=len(duplicate_fights),
+            skipped_incomplete_count=len(incomplete_fights),
+            duplicate_fights=duplicate_fights,
+            incomplete_fights=incomplete_fights,
+        )
+
+    df = validate_exact_columns(df, config["expected_columns"], f"{payload.source} CSV")
+    records = build_db_records(df, config["column_mapping"], os.path.basename(csv_path))
+
     with conn.cursor() as cur:
-        for _, row in df.iterrows():
-            fight_key = (
-                pd.to_datetime(row["Date"]).date(),
-                row["RedFighter"],
-                row["BlueFighter"],
-                row["WeightClass"],
-            )
-            if fight_key in duplicate_keys:
-                continue
-
-            values = [to_python_value(row[csv_column]) for csv_column, _ in CSV_TO_DB_COLUMNS]
-            values.append(os.path.basename(csv_path))
-            cur.execute(UPSERT_SQL, values)
-            inserted_count += cur.rowcount
+        cur.executemany(config["upsert_sql"], records)
         conn.commit()
 
     return LoadResponse(
         message="Fight CSV load complete",
         source=payload.source,
         csv_path=csv_path,
-        inserted_count=inserted_count,
-        skipped_duplicate_count=len(duplicate_fights),
-        skipped_incomplete_count=len(incomplete_fights),
-        duplicate_fights=duplicate_fights,
-        incomplete_fights=incomplete_fights,
+        inserted_count=len(records),
+        skipped_duplicate_count=0,
+        skipped_incomplete_count=0,
+        duplicate_fights=[],
+        incomplete_fights=[],
     )

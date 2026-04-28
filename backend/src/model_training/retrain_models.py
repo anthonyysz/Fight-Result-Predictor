@@ -960,6 +960,7 @@ model_file_names = {
     "Middleweight": "middle.joblib",
     "Light Heavyweight": "lhw.joblib",
     "Heavyweight": "heavy.joblib",
+    "__global__": "global.joblib",
 }
 
 # Local
