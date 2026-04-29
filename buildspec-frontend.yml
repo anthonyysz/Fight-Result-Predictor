@@ -1,0 +1,16 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+    commands:
+      - cd frontend
+      - npm ci
+  build:
+    commands:
+      - npm run build
+  post_build:
+    commands:
+      - aws s3 sync build s3://frp-frontend-anthonysz --delete
+      - aws cloudfront create-invalidation --distribution-id E11D24LTO2QWM1 --paths "/*"
