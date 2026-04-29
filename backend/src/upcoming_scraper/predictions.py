@@ -22,6 +22,8 @@ UPCOMING_PREDICTION_COLUMNS = [
     "fight_date",
     "red_fighter",
     "blue_fighter",
+    "red_odds",
+    "blue_odds",
     "weight_class",
     "predicted_winner",
     "confidence",
@@ -38,6 +40,8 @@ UPSERT_UPCOMING_PREDICTIONS = (
     f"INSERT INTO public.upcoming_predictions ({', '.join(UPCOMING_PREDICTION_COLUMNS)}) "
     f"VALUES ({', '.join(['%s'] * len(UPCOMING_PREDICTION_COLUMNS))}) "
     "ON CONFLICT ON CONSTRAINT upcoming_predictions_unique_fight DO UPDATE SET "
+    "red_odds = EXCLUDED.red_odds, "
+    "blue_odds = EXCLUDED.blue_odds, "
     "predicted_winner = EXCLUDED.predicted_winner, "
     "confidence = EXCLUDED.confidence, "
     "expected_value_red = EXCLUDED.expected_value_red, "
@@ -176,6 +180,8 @@ def build_prediction_record(source_row: pd.Series, prediction: pd.Series) -> tup
         "red_fighter": source_row["red_fighter"],
         "blue_fighter": source_row["blue_fighter"],
         "weight_class": source_row["weight_class"],
+        "red_odds": source_row['red_odds'],
+        "blue_odds": source_row['blue_odds'],
         "predicted_winner": prediction["predicted_winner"],
         "confidence": prediction["confidence"],
         "expected_value_red": prediction["expected_value_red"],
