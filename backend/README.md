@@ -92,3 +92,8 @@ Generate upcoming predictions from RDS using S3-hosted models
 ```powershell
 Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8000/admin/upcoming-predictions/generate'
 ```
+
+Complete fights after they are done
+```powershell
+Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8000/admin/upcoming-fights/finish'
+```
