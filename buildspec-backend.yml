@@ -1,0 +1,17 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.12
+  build:
+    commands:
+      - echo "Preparing Elastic Beanstalk backend bundle"
+      - mkdir frp-eb-deploy
+      - cp Dockerfile frp-eb-deploy/Dockerfile
+      - cp -r backend frp-eb-deploy/backend
+      - rm -f frp-eb-deploy/backend/.env
+artifacts:
+  files:
+    - '**/*'
+  base-directory: frp-eb-deploy
