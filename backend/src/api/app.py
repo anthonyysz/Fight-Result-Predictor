@@ -7,6 +7,7 @@ from typing import Any, Literal
 import pandas as pd
 import psycopg
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from upcoming_scraper.predictions import generate_upcoming_predictions
 
@@ -130,8 +131,34 @@ LOAD_CONFIG = {
     },
 }
 
+def parse_csv_env(value: str | None) -> list[str]:
+    if not value:
+        return []
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def get_frontend_origins() -> list[str]:
+    env_origins = parse_csv_env(os.environ.get("FRONTEND_ORIGINS"))
+    if env_origins:
+        return env_origins
+
+    if os.path.exists(SQL_ENV_PATH):
+        env_values = read_dotenv(SQL_ENV_PATH)
+        file_origins = parse_csv_env(env_values.get("FRONTEND_ORIGINS"))
+        if file_origins:
+            return file_origins
+
+    return ["http://localhost:3000", "http://127.0.0.1:3000"]
+
 app = FastAPI(title="Fight Result Predictor Admin API", version="0.1.0")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=get_frontend_origins(),
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+)
 
 class HealthResponse(BaseModel):
     status: str
@@ -181,6 +208,20 @@ class PredictionGenerateResponse(BaseModel):
     row_count: int
     predicted_fights: list[str]
 
+class UpcomingPredictionRow(BaseModel):
+    fight_date: date
+    red_fighter: str
+    blue_fighter: str
+    red_odds: int
+    blue_odds: int
+    weight_class: str
+    predicted_winner: str
+    confidence: float
+    recommended_bet: str
+
+
+class UpcomingPredictionsResponse(BaseModel):
+    rows: list[UpcomingPredictionRow]
 
 def get_conninfo() -> str:
     if not os.path.exists(SQL_ENV_PATH):
@@ -297,11 +338,54 @@ def fetch_existing_fight_keys(conn, dates: list[date]) -> set[tuple[Any, Any, An
         cur.execute(query, (dates,))
         return {(row[0], row[1], row[2], row[3]) for row in cur.fetchall()}
 
+def fetch_upcoming_prediction_rows(conn) -> list[UpcomingPredictionRow]:
+    query = """
+        SELECT
+            p.fight_date,
+            p.red_fighter,
+            p.blue_fighter,
+            f.red_odds,
+            f.blue_odds,
+            p.weight_class,
+            p.predicted_winner,
+            p.confidence,
+            p.recommended_bet
+        FROM public.upcoming_predictions p
+        INNER JOIN public.upcoming_fights f
+            ON p.fight_date = f.fight_date
+            AND p.red_fighter = f.red_fighter
+            AND p.blue_fighter = f.blue_fighter
+            AND p.weight_class = f.weight_class
+        ORDER BY p.fight_date, p.red_fighter, p.blue_fighter
+    """
+
+    with conn.cursor() as cur:
+        cur.execute(query)
+        rows = cur.fetchall()
+
+    return [
+        UpcomingPredictionRow(
+            fight_date=row[0],
+            red_fighter=row[1],
+            blue_fighter=row[2],
+            red_odds=row[3],
+            blue_odds=row[4],
+            weight_class=row[5],
+            predicted_winner=row[6],
+            confidence=float(row[7]),
+            recommended_bet=row[8],
+        )
+        for row in rows
+    ]
 
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     return HealthResponse(status="ok")
 
+@app.get("/predictions/upcoming", response_model=UpcomingPredictionsResponse)
+def get_upcoming_predictions(conn=Depends(get_db_connection)) -> UpcomingPredictionsResponse:
+    rows = fetch_upcoming_prediction_rows(conn)
+    return UpcomingPredictionsResponse(rows=rows)
 
 @app.post("/admin/recent-fights/scrape", response_model=ScrapeResponse)
 def scrape_recent_fights(payload: RecentScrapeRequest) -> ScrapeResponse:
