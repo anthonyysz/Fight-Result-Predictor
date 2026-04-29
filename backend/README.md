@@ -38,7 +38,7 @@ To clear it:
 Stop-Process -Id 29604
 ```
 
-To start it:
+To start it (From backend directory):
 ```powershell
 $env:PYTHONPATH = (Resolve-Path .\src).Path
 ```
@@ -86,4 +86,9 @@ Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8000/admin/fights/load' -C
 Load upcoming metadata
 ```powershell
 Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8000/admin/fights/load' -ContentType 'application/json' -Body '{"source":"upcoming_metadata"}'
+```
+
+Generate upcoming predictions from RDS using S3-hosted models
+```powershell
+Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8000/admin/upcoming-predictions/generate'
 ```

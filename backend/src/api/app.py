@@ -8,6 +8,7 @@ import pandas as pd
 import psycopg
 from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel
+from upcoming_scraper.predictions import generate_upcoming_predictions
 
 from historical_scraper.core.csv_manager import RECENT_COLUMNS
 from historical_scraper.core.utils import parse_us_date
@@ -174,6 +175,11 @@ class LoadResponse(BaseModel):
     skipped_incomplete_count: int
     duplicate_fights: list[str]
     incomplete_fights: list[str]
+
+class PredictionGenerateResponse(BaseModel):
+    message: str
+    row_count: int
+    predicted_fights: list[str]
 
 
 def get_conninfo() -> str:
@@ -412,4 +418,13 @@ def load_fights(payload: SourceLoadRequest, conn=Depends(get_db_connection)) -> 
         skipped_incomplete_count=0,
         duplicate_fights=[],
         incomplete_fights=[],
+    )
+
+@app.post("/admin/upcoming-predictions/generate", response_model=PredictionGenerateResponse)
+def generate_upcoming_predictions_route(conn=Depends(get_db_connection)) -> PredictionGenerateResponse:
+    row_count, predicted_fights = generate_upcoming_predictions(conn)
+    return PredictionGenerateResponse(
+        message="Upcoming predictions generated in public.upcoming_predictions",
+        row_count=row_count,
+        predicted_fights=predicted_fights,
     )
