@@ -27,5 +27,3 @@ frontend/build/
 frontend/.next/
 
 frp-eb-deploy/
-
-buildspec-backend-yml
