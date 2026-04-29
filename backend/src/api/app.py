@@ -188,9 +188,13 @@ class ScrapeResponse(BaseModel):
 
 class FinishResponse(BaseModel):
     message: str
-    output_path: str
-    row_count: int
-    completed_fights: list[str]
+    moved_count: int
+    discarded_count: int
+    pending_count: int
+    historical_prediction_rows_inserted: int
+    moved_fights: list[str]
+    discarded_fights: list[str]
+    pending_fights: list[str]
 
 
 class LoadResponse(BaseModel):
@@ -425,15 +429,18 @@ def scrape_upcoming_fights() -> ScrapeResponse:
 
 
 @app.post("/admin/upcoming-fights/finish", response_model=FinishResponse)
-def finish_upcoming_fights_route() -> FinishResponse:
-    completed_df, completed_fights = finish_upcoming_fights()
+def finish_upcoming_fights_route(conn=Depends(get_db_connection)) -> FinishResponse:
+    summary = finish_upcoming_fights(conn)
     return FinishResponse(
-        message="Upcoming fights CSV finished with results and returns",
-        output_path=UPCOMING_FIGHTS_CSV_PATH,
-        row_count=len(completed_df),
-        completed_fights=completed_fights,
+        message="Upcoming fights processed and moved into public.all_fights",
+        moved_count=len(summary["moved_fights"]),
+        discarded_count=len(summary["discarded_fights"]),
+        pending_count=len(summary["pending_fights"]),
+        historical_prediction_rows_inserted=summary["historical_prediction_rows_inserted"],
+        moved_fights=summary["moved_fights"],
+        discarded_fights=summary["discarded_fights"],
+        pending_fights=summary["pending_fights"],
     )
-
 
 @app.post("/admin/fights/load", response_model=LoadResponse)
 def load_fights(payload: SourceLoadRequest, conn=Depends(get_db_connection)) -> LoadResponse:
