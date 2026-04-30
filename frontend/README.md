@@ -1,11 +1,13 @@
 # Frontend
 
-This folder is reserved for the future web app.
+This is the deployed React frontend for the fight-result-predictor project.
 
-Suggested layout:
+## Environment variables
 
-- `public/` for static assets
-- `src/` for application code
-- `.env.example` for frontend environment variable names
+- Local development can use `frontend/.env`
+- Production builds do not read local files at runtime
+- `REACT_APP_API_BASE_URL` must be supplied at build time in AWS CodeBuild so the
+  built bundle points at the Elastic Beanstalk backend host
 
-Nothing is implemented here yet.
+If `REACT_APP_API_BASE_URL` is not provided, the app falls back to
+`http://127.0.0.1:8000` for desktop development only.

@@ -1,7 +1,18 @@
 import React, { useEffect, useState } from "react";
 import "../style/home.css";
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://127.0.0.1:8000";
+const DEFAULT_LOCAL_API_BASE_URL = "http://127.0.0.1:8000";
+
+const normalizeApiBaseUrl = (value) => {
+  if (!value) {
+    return DEFAULT_LOCAL_API_BASE_URL;
+  }
+
+  const trimmed = value.trim().replace(/\/+$/, "");
+  return trimmed || DEFAULT_LOCAL_API_BASE_URL;
+};
+
+const API_BASE_URL = normalizeApiBaseUrl(process.env.REACT_APP_API_BASE_URL);
 
 const formatOdds = (odds) => {
   const numericOdds = Number(odds);

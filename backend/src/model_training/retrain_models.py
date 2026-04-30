@@ -23,6 +23,7 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from xgboost import XGBClassifier
 from joblib import dump
 import psycopg
+from shared.config import get_database_conninfo, get_setting
 
 # SECTION 1: ENVIRONMENT CONSTANTS
 
@@ -31,45 +32,9 @@ MODEL_PREFIX_ENV = "MODEL_PREFIX"
 ROOT = Path(__file__).resolve().parents[3] #Local
 BACKEND_DIR = ROOT / "backend"
 MODELS_PATH = ROOT / "models"
-ENV_PATH = BACKEND_DIR / ".env"
-
-def read_dotenv(path: str) -> dict[str, str]:
-    values: dict[str, str] = {}
-    with open(path, "r", encoding="utf-8") as handle:
-        raw_lines = handle.read().splitlines()
-    for raw_line in raw_lines:
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        values[key.strip()] = value.strip().strip('"').strip("'")
-    return values
 
 def get_conninfo() -> str:
-    database_url = os.environ.get("DATABASE_URL")
-    if database_url:
-        return database_url
-
-    if not ENV_PATH.exists():
-        raise ValueError(f"Missing backend env file at {ENV_PATH}")
-
-    env_values = read_dotenv(str(ENV_PATH))
-    database_url = env_values.get("DATABASE_URL")
-    if database_url:
-        return database_url
-
-    required_keys = ["PGHOST", "PGPORT", "PGDATABASE", "PGUSER", "PGPASSWORD"]
-    missing = [key for key in required_keys if not env_values.get(key)]
-    if missing:
-        raise ValueError(f"Missing database settings: {', '.join(missing)}")
-
-    return (
-        f"host={env_values['PGHOST']} "
-        f"port={env_values['PGPORT']} "
-        f"dbname={env_values['PGDATABASE']} "
-        f"user={env_values['PGUSER']} "
-        f"password={env_values['PGPASSWORD']}"
-    )
+    return get_database_conninfo(required=True)
 # SECTION 2: VARIABLES AND ESTIMATORS
 
 LEAKAGE_COLS = ["RedWinner", "RedReturn", "BlueReturn"]
@@ -992,18 +957,11 @@ def save_models_locally(deployment_registry: dict[str, dict]) -> list[dict]:
 
 #Cloud
 def get_model_storage_settings() -> tuple[str, str]:
-    bucket = os.environ.get(MODEL_BUCKET_ENV)
-    prefix = os.environ.get(MODEL_PREFIX_ENV)
+    bucket = get_setting(MODEL_BUCKET_ENV)
+    prefix = get_setting(MODEL_PREFIX_ENV, "models")
 
     if bucket:
         return bucket, (prefix or "models").strip("/")
-
-    if ENV_PATH.exists():
-        env_values = read_dotenv(str(ENV_PATH))
-        bucket = env_values.get(MODEL_BUCKET_ENV)
-        prefix = env_values.get(MODEL_PREFIX_ENV, "models")
-        if bucket:
-            return bucket, prefix.strip("/")
 
     raise ValueError(
         f"Missing model storage configuration. Set {MODEL_BUCKET_ENV} and {MODEL_PREFIX_ENV}."

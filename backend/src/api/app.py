@@ -9,11 +9,12 @@ import psycopg
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from shared.config import get_csv_setting, get_database_conninfo
 from upcoming_scraper.predictions import generate_upcoming_predictions
 
 from historical_scraper.core.csv_manager import RECENT_COLUMNS
 from historical_scraper.core.utils import parse_us_date
-from historical_scraper.main import DEFAULT_START_DATE, lookup_database_latest_fight_date, read_dotenv, run_recent_scrape
+from historical_scraper.main import DEFAULT_START_DATE, lookup_database_latest_fight_date, run_recent_scrape
 from upcoming_scraper.main import run_upcoming_scrape
 from upcoming_scraper.loaders import (
     UPCOMING_CSV_TO_DB_COLUMNS,
@@ -30,7 +31,6 @@ from upcoming_scraper.loaders import (
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.normpath(os.path.join(APP_DIR, "..", ".."))
-SQL_ENV_PATH = os.path.join(BACKEND_DIR, ".env")
 RECENT_FIGHTS_CSV_PATH = os.path.join(BACKEND_DIR, "data", "generated", "historical_scraper", "recent_fights.csv")
 TESTING_CSV_PATH = os.path.normpath(os.path.join(BACKEND_DIR, "..", "notebooks", "data", "testing.csv"))
 CSV_TO_DB_COLUMNS = [
@@ -107,6 +107,7 @@ LOAD_CONFIG = {
         "column_mapping": CSV_TO_DB_COLUMNS,
         "upsert_sql": UPSERT_SQL,
         "table_kind": "all_fights",
+        "local_only": False,
     },
     "testing": {
         "csv_path": TESTING_CSV_PATH,
@@ -114,6 +115,7 @@ LOAD_CONFIG = {
         "column_mapping": CSV_TO_DB_COLUMNS,
         "upsert_sql": UPSERT_SQL,
         "table_kind": "all_fights",
+        "local_only": True,
     },
     "upcoming_fights": {
         "csv_path": UPCOMING_FIGHTS_CSV_PATH,
@@ -121,6 +123,7 @@ LOAD_CONFIG = {
         "column_mapping": UPCOMING_CSV_TO_DB_COLUMNS,
         "upsert_sql": UPSERT_UPCOMING,
         "table_kind": "upcoming_fights",
+        "local_only": False,
     },
     "upcoming_metadata": {
         "csv_path": UPCOMING_METADATA_CSV_PATH,
@@ -128,27 +131,12 @@ LOAD_CONFIG = {
         "column_mapping": UPCOMING_METADATA_CSV_TO_DB_COLUMNS,
         "upsert_sql": UPSERT_UPCOMING_METADATA,
         "table_kind": "upcoming_metadata",
+        "local_only": False,
     },
 }
 
-def parse_csv_env(value: str | None) -> list[str]:
-    if not value:
-        return []
-    return [item.strip() for item in value.split(",") if item.strip()]
-
-
 def get_frontend_origins() -> list[str]:
-    env_origins = parse_csv_env(os.environ.get("FRONTEND_ORIGINS"))
-    if env_origins:
-        return env_origins
-
-    if os.path.exists(SQL_ENV_PATH):
-        env_values = read_dotenv(SQL_ENV_PATH)
-        file_origins = parse_csv_env(env_values.get("FRONTEND_ORIGINS"))
-        if file_origins:
-            return file_origins
-
-    return ["http://localhost:3000", "http://127.0.0.1:3000"]
+    return get_csv_setting("FRONTEND_ORIGINS", ["http://localhost:3000", "http://127.0.0.1:3000"])
 
 app = FastAPI(title="Fight Result Predictor Admin API", version="0.1.0")
 
@@ -228,48 +216,10 @@ class UpcomingPredictionsResponse(BaseModel):
     rows: list[UpcomingPredictionRow]
 
 def get_conninfo() -> str:
-    required_keys = ["PGHOST", "PGPORT", "PGDATABASE", "PGUSER", "PGPASSWORD"]
-
-    runtime_database_url = os.environ.get("DATABASE_URL")
-    if runtime_database_url:
-        return runtime_database_url
-
-    runtime_values = {key: os.environ.get(key) for key in required_keys}
-    missing_runtime = [key for key, value in runtime_values.items() if not value]
-
-    if not missing_runtime:
-        return (
-            f"host={runtime_values['PGHOST']} "
-            f"port={runtime_values['PGPORT']} "
-            f"dbname={runtime_values['PGDATABASE']} "
-            f"user={runtime_values['PGUSER']} "
-            f"password={runtime_values['PGPASSWORD']}"
-        )
-
-    if os.path.exists(SQL_ENV_PATH):
-        file_values = read_dotenv(SQL_ENV_PATH)
-
-        file_database_url = file_values.get("DATABASE_URL")
-        if file_database_url:
-            return file_database_url
-
-        missing_file = [key for key in required_keys if not file_values.get(key)]
-        if not missing_file:
-            return (
-                f"host={file_values['PGHOST']} "
-                f"port={file_values['PGPORT']} "
-                f"dbname={file_values['PGDATABASE']} "
-                f"user={file_values['PGUSER']} "
-                f"password={file_values['PGPASSWORD']}"
-            )
-
-    raise HTTPException(
-        status_code=500,
-        detail=(
-            "Missing database settings. Set DATABASE_URL or "
-            "PGHOST, PGPORT, PGDATABASE, PGUSER, and PGPASSWORD."
-        ),
-    )
+    try:
+        return get_database_conninfo(required=True)
+    except ValueError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 def get_db_connection() -> Any:
@@ -288,6 +238,10 @@ def ensure_file_exists(path: str, label: str) -> None:
 
 
 REQUIRED_DB_CSV_COLUMNS = [csv_column for csv_column, _ in CSV_TO_DB_COLUMNS]
+
+
+def build_required_csv_columns(column_mapping: list[tuple[str, str]]) -> list[str]:
+    return [csv_column for csv_column, _ in column_mapping]
 
 def validate_exact_columns(df: pd.DataFrame, expected_columns: list[str], label: str) -> pd.DataFrame:
     actual_columns = list(df.columns)
@@ -331,6 +285,45 @@ def build_incomplete_fight_messages(df: pd.DataFrame) -> list[str]:
         )
 
     return incomplete_fights
+
+
+def build_incomplete_row_messages(df: pd.DataFrame, required_columns: list[str]) -> list[str]:
+    incomplete_rows: list[str] = []
+
+    for _, row in df.iterrows():
+        missing_columns = [column for column in required_columns if pd.isna(row[column])]
+        if not missing_columns:
+            continue
+
+        date_value = pd.to_datetime(row["Date"]).date().isoformat() if "Date" in row and pd.notna(row["Date"]) else "unknown-date"
+        red_fighter = row.get("RedFighter", "unknown-red")
+        blue_fighter = row.get("BlueFighter", "unknown-blue")
+        identifier = f"{date_value} | {red_fighter} vs {blue_fighter}"
+        if "WeightClass" in row and pd.notna(row["WeightClass"]):
+            identifier = f"{identifier} | {row['WeightClass']}"
+
+        incomplete_rows.append(f"{identifier} | missing: {', '.join(missing_columns)}")
+
+    return incomplete_rows
+
+
+def filter_complete_rows(df: pd.DataFrame, required_columns: list[str]) -> pd.DataFrame:
+    complete_mask = df[required_columns].notna().all(axis=1)
+    return df.loc[complete_mask].copy()
+
+
+def ensure_source_is_available(config: dict[str, Any], source: str) -> None:
+    csv_path = config["csv_path"]
+    if config.get("local_only") and not os.path.exists(csv_path):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"The '{source}' source is local-only and requires the file at {csv_path}. "
+                "Use it from a desktop/local workflow where the notebooks data exists."
+            ),
+        )
+
+    ensure_file_exists(csv_path, f"{source} CSV")
 
 
 def to_python_value(value: Any) -> Any:
@@ -468,7 +461,7 @@ def finish_upcoming_fights_route(conn=Depends(get_db_connection)) -> FinishRespo
 def load_fights(payload: SourceLoadRequest, conn=Depends(get_db_connection)) -> LoadResponse:
     config = LOAD_CONFIG[payload.source]
     csv_path = config["csv_path"]
-    ensure_file_exists(csv_path, f"{payload.source} CSV")
+    ensure_source_is_available(config, payload.source)
 
     df = pd.read_csv(csv_path)
 
@@ -516,6 +509,9 @@ def load_fights(payload: SourceLoadRequest, conn=Depends(get_db_connection)) -> 
         )
 
     df = validate_exact_columns(df, config["expected_columns"], f"{payload.source} CSV")
+    required_columns = build_required_csv_columns(config["column_mapping"])
+    incomplete_fights = build_incomplete_row_messages(df, required_columns)
+    df = filter_complete_rows(df, required_columns)
     records = build_db_records(df, config["column_mapping"], os.path.basename(csv_path))
 
     with conn.cursor() as cur:
@@ -528,9 +524,9 @@ def load_fights(payload: SourceLoadRequest, conn=Depends(get_db_connection)) -> 
         csv_path=csv_path,
         inserted_count=len(records),
         skipped_duplicate_count=0,
-        skipped_incomplete_count=0,
+        skipped_incomplete_count=len(incomplete_fights),
         duplicate_fights=[],
-        incomplete_fights=[],
+        incomplete_fights=incomplete_fights,
     )
 
 @app.post("/admin/upcoming-predictions/generate", response_model=PredictionGenerateResponse)

@@ -26,4 +26,4 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["historical_scraper*", "upcoming_scraper*", "api*", "model_training*"]
+include = ["historical_scraper*", "upcoming_scraper*", "api*", "model_training*", "shared*"]

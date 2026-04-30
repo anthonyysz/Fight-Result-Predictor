@@ -17,13 +17,13 @@ from historical_scraper.core.utils import parse_us_date
 from historical_scraper.sources.odds_scraper import apply_odds
 from historical_scraper.sources.rankings_scraper import apply_rankings
 from historical_scraper.sources.ufcstats_scraper import apply_ufcstats_data, initialize_recent_rows
+from shared.config import get_database_conninfo
 
 
 DEFAULT_START_DATE = "2024-12-14"
 SCRAPER_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.normpath(os.path.join(SCRAPER_DIR, "..", ".."))
 REFERENCE_DATA_DIR = os.path.join(BACKEND_DIR, "data", "reference")
-SQL_ENV_PATH = os.path.join(BACKEND_DIR, ".env")
 
 # Adding a start date argument
 def parse_args() -> argparse.Namespace:
@@ -81,29 +81,14 @@ def main() -> None:
 
 # Checking for the most recent fight that's been added to the SQL database
 def lookup_database_latest_fight_date() -> str | None:
-    if not os.path.exists(SQL_ENV_PATH):
-        return None
-
     try:
         import psycopg
     except ImportError:
         return None
 
-    env_values = read_dotenv(SQL_ENV_PATH)
-    database_url = env_values.get("DATABASE_URL")
-    if database_url:
-        conninfo = database_url
-    else:
-        required_keys = ["PGHOST", "PGPORT", "PGDATABASE", "PGUSER", "PGPASSWORD"]
-        if any(not env_values.get(key) for key in required_keys):
-            return None
-        conninfo = (
-            f"host={env_values['PGHOST']} "
-            f"port={env_values['PGPORT']} "
-            f"dbname={env_values['PGDATABASE']} "
-            f"user={env_values['PGUSER']} "
-            f"password={env_values['PGPASSWORD']}"
-        )
+    conninfo = get_database_conninfo(required=False)
+    if not conninfo:
+        return None
 
     try:
         with psycopg.connect(conninfo) as conn:
@@ -115,19 +100,6 @@ def lookup_database_latest_fight_date() -> str | None:
                 return row[0].isoformat()
     except Exception:
         return None
-
-# Used to read the environment file
-def read_dotenv(path: str) -> dict[str, str]:
-    values: dict[str, str] = {}
-    with open(path, "r", encoding="utf-8") as handle:
-        raw_lines = handle.read().splitlines()
-    for raw_line in raw_lines:
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        values[key.strip()] = value.strip().strip('"').strip("'")
-    return values
 
 
 if __name__ == "__main__":
