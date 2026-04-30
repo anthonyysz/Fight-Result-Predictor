@@ -162,7 +162,7 @@ const Home = () => {
           </div>
 
           <p className="home-bio-text">
-            Odds are of course subject to change throughout fight week
+            Odds will, of course, change throughout fight week
           </p>
         </div>
 
