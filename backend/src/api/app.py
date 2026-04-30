@@ -228,29 +228,30 @@ class UpcomingPredictionsResponse(BaseModel):
     rows: list[UpcomingPredictionRow]
 
 def get_conninfo() -> str:
-    database_url = env_values.get("DATABASE_URL")
-    if database_url:
-        return database_url
-
     required_keys = ["PGHOST", "PGPORT", "PGDATABASE", "PGUSER", "PGPASSWORD"]
-    env_values = {key: os.environ.get(key) for key in required_keys}
-    missing = [key for key in required_keys if not env_values.get(key)]
-    
-    if not missing_env:
+
+    runtime_database_url = os.environ.get("DATABASE_URL")
+    if runtime_database_url:
+        return runtime_database_url
+
+    runtime_values = {key: os.environ.get(key) for key in required_keys}
+    missing_runtime = [key for key, value in runtime_values.items() if not value]
+
+    if not missing_runtime:
         return (
-            f"host={env_values['PGHOST']} "
-            f"port={env_values['PGPORT']} "
-            f"dbname={env_values['PGDATABASE']} "
-            f"user={env_values['PGUSER']} "
-            f"password={env_values['PGPASSWORD']}"
+            f"host={runtime_values['PGHOST']} "
+            f"port={runtime_values['PGPORT']} "
+            f"dbname={runtime_values['PGDATABASE']} "
+            f"user={runtime_values['PGUSER']} "
+            f"password={runtime_values['PGPASSWORD']}"
         )
 
     if os.path.exists(SQL_ENV_PATH):
         file_values = read_dotenv(SQL_ENV_PATH)
 
-        database_url = file_values.get("DATABASE_URL")
-        if database_url:
-            return database_url
+        file_database_url = file_values.get("DATABASE_URL")
+        if file_database_url:
+            return file_database_url
 
         missing_file = [key for key in required_keys if not file_values.get(key)]
         if not missing_file:
@@ -261,6 +262,7 @@ def get_conninfo() -> str:
                 f"user={file_values['PGUSER']} "
                 f"password={file_values['PGPASSWORD']}"
             )
+
     raise HTTPException(
         status_code=500,
         detail=(
