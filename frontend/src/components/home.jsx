@@ -158,11 +158,11 @@ const Home = () => {
         <div className="home-heading-row">
           <div>
             <p className="home-greeting-text">Upcoming predictions</p>
-            <h1 className="home-title-text">Fight Card</h1>
+            <h1 className="home-title-text"> UFC Perth: Della Maddalena vs. Prates</h1>
           </div>
 
           <p className="home-bio-text">
-            Live rows from the upcoming predictions table.
+            Odds are of course subject to change throughout fight week
           </p>
         </div>
 
