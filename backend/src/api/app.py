@@ -228,25 +228,45 @@ class UpcomingPredictionsResponse(BaseModel):
     rows: list[UpcomingPredictionRow]
 
 def get_conninfo() -> str:
-    if not os.path.exists(SQL_ENV_PATH):
-        raise HTTPException(status_code=500, detail=f"Missing backend env file at {SQL_ENV_PATH}")
-
-    env_values = read_dotenv(SQL_ENV_PATH)
     database_url = env_values.get("DATABASE_URL")
     if database_url:
         return database_url
 
     required_keys = ["PGHOST", "PGPORT", "PGDATABASE", "PGUSER", "PGPASSWORD"]
+    env_values = {key: os.environ.get(key) for key in required_keys}
     missing = [key for key in required_keys if not env_values.get(key)]
-    if missing:
-        raise HTTPException(status_code=500, detail=f"Missing database settings: {', '.join(missing)}")
+    
+    if not missing_env:
+        return (
+            f"host={env_values['PGHOST']} "
+            f"port={env_values['PGPORT']} "
+            f"dbname={env_values['PGDATABASE']} "
+            f"user={env_values['PGUSER']} "
+            f"password={env_values['PGPASSWORD']}"
+        )
 
-    return (
-        f"host={env_values['PGHOST']} "
-        f"port={env_values['PGPORT']} "
-        f"dbname={env_values['PGDATABASE']} "
-        f"user={env_values['PGUSER']} "
-        f"password={env_values['PGPASSWORD']}"
+    if os.path.exists(SQL_ENV_PATH):
+        file_values = read_dotenv(SQL_ENV_PATH)
+
+        database_url = file_values.get("DATABASE_URL")
+        if database_url:
+            return database_url
+
+        missing_file = [key for key in required_keys if not file_values.get(key)]
+        if not missing_file:
+            return (
+                f"host={file_values['PGHOST']} "
+                f"port={file_values['PGPORT']} "
+                f"dbname={file_values['PGDATABASE']} "
+                f"user={file_values['PGUSER']} "
+                f"password={file_values['PGPASSWORD']}"
+            )
+    raise HTTPException(
+        status_code=500,
+        detail=(
+            "Missing database settings. Set DATABASE_URL or "
+            "PGHOST, PGPORT, PGDATABASE, PGUSER, and PGPASSWORD."
+        ),
     )
 
 
