@@ -175,6 +175,17 @@ DELETE_UPCOMING_PREDICTION = """
       AND weight_class = %s
 """
 
+DELETE_ORPHANED_UPCOMING_METADATA = """
+    DELETE FROM public.upcoming_metadata um
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM public.upcoming_fights uf
+        WHERE uf.fight_date = um.fight_date
+          AND uf.red_fighter = um.red_fighter
+          AND uf.blue_fighter = um.blue_fighter
+    )
+"""
+
 def build_upcoming_metadata(initial_rows: list[dict[str, Any]]) -> str:
     metadata_rows = [
         {
@@ -377,6 +388,8 @@ def finish_upcoming_fights(conn) -> dict[str, Any]:
 
         if upcoming_prediction_deletes:
             cur.executemany(DELETE_UPCOMING_PREDICTION, upcoming_prediction_deletes)
+
+        cur.execute(DELETE_ORPHANED_UPCOMING_METADATA)
 
     conn.commit()
 

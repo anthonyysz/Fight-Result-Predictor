@@ -24,7 +24,6 @@ from upcoming_scraper.loaders import (
     UPCOMING_FIGHTS_CSV_PATH,
     UPSERT_UPCOMING,
     UPSERT_UPCOMING_METADATA,
-    build_upcoming_metadata,
     finish_upcoming_fights,
 )
 
@@ -429,12 +428,11 @@ def scrape_recent_fights(payload: RecentScrapeRequest) -> ScrapeResponse:
 @app.post("/admin/upcoming-fights/scrape", response_model=ScrapeResponse)
 def scrape_upcoming_fights() -> ScrapeResponse:
     summary = run_upcoming_scrape()
-    metadata_path = build_upcoming_metadata(summary["initial_rows"])
     return ScrapeResponse(
         message="Upcoming fights CSV refreshed",
         output_path=summary["upcoming_fights_csv"],
         row_count=summary["fight_rows"],
-        metadata_path=metadata_path,
+        metadata_path=summary["metadata_path"],
         missing_data_report=summary["missing_data_report"],
         missing_columns_summary=summary["missing_columns_summary"],
         missing_odds_report=summary["missing_odds_report"],

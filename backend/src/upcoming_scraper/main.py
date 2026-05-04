@@ -15,6 +15,7 @@ from upcoming_scraper.core.csv_manager import (
     save_missing_reports,
     save_upcoming_dataframe,
 )
+from upcoming_scraper.loaders import build_upcoming_metadata
 from upcoming_scraper.sources.ufcstats_scraper import apply_upcoming_ufcstats_data, initialize_upcoming_rows
 
 
@@ -44,6 +45,7 @@ def run_upcoming_scrape(today: date | None = None) -> dict[str, Any]:
     upcoming_csv_path = save_upcoming_dataframe(upcoming_df)
     missing_report_path, missing_summary_path = save_missing_reports(upcoming_df)
     missing_odds_report_path = save_missing_odds_report(df_internal)
+    metadata_path = build_upcoming_metadata(initial_rows)
 
     event_name = initial_rows[0]["event_name"] if initial_rows else "unavailable"
     event_date = initial_rows[0]["fight_date"].isoformat() if initial_rows else "unavailable"
@@ -52,6 +54,7 @@ def run_upcoming_scrape(today: date | None = None) -> dict[str, Any]:
         "event_name": event_name,
         "event_date": event_date,
         "upcoming_fights_csv": upcoming_csv_path,
+        "metadata_path": metadata_path,
         "missing_data_report": missing_report_path,
         "missing_columns_summary": missing_summary_path,
         "missing_odds_report": missing_odds_report_path,
@@ -67,6 +70,7 @@ def main() -> None:
     print(f"event_name: {summary['event_name']}")
     print(f"event_date: {summary['event_date']}")
     print(f"upcoming_fights_csv: {summary['upcoming_fights_csv']}")
+    print(f"metadata_path: {summary['metadata_path']}")
     print(f"missing_data_report: {summary['missing_data_report']}")
     print(f"missing_columns_summary: {summary['missing_columns_summary']}")
     print(f"missing_odds_report: {summary['missing_odds_report']}")

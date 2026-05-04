@@ -72,7 +72,7 @@ $env:PYTHONPATH = (Resolve-Path .\src).Path
 To load historical scraped data into RDS:
 Start the backend
 ```powershell
-Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/admin/fights/load -ContentType "application/json" -Body '{"source":"recent"}'
+Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8000/admin/fights/load' -ContentType "application/json" -Body '{"source":"recent"}'
 ```
 Load from testing.csv database
 ```powershell
@@ -87,6 +87,7 @@ Load upcoming metadata
 ```powershell
 Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8000/admin/fights/load' -ContentType 'application/json' -Body '{"source":"upcoming_metadata"}'
 ```
+The upcoming scrape command produces both `upcoming_fights.csv` and `upcoming_fights_metadata.csv`, and `finish` removes metadata rows for fights no longer present in `public.upcoming_fights`.
 
 Generate upcoming predictions from RDS using S3-hosted models
 ```powershell
