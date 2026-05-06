@@ -700,12 +700,17 @@ def predict_fight(fight_row, registry=None):
         bet_corner = "Red"
         bet_name = red_name
         best_ev = ev_red
+        best_prob = prob_red
     else:
         bet_corner = "Blue"
         bet_name = blue_name
         best_ev = ev_blue
+        best_prob = prob_blue
 
-    recommended_bet = bet_name if best_ev > bundle["threshold"] else "Pass"
+    if best_ev > bundle["threshold"] and best_prob > .33:
+        recommended_bet = bet_name 
+    else: 
+        recommended_bet = "Pass"
 
     return pd.Series(
         {
