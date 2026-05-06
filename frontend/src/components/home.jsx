@@ -29,6 +29,7 @@ const buildRowKey = (row) => {
 
 const Home = () => {
   const [fightRows, setFightRows] = useState([]);
+  const [eventName, setEventName] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 

@@ -426,7 +426,7 @@ def health() -> HealthResponse:
 def get_upcoming_predictions(conn=Depends(get_db_connection)) -> UpcomingPredictionsResponse:
     rows = fetch_upcoming_prediction_rows(conn)
     event_name = fetch_upcoming_event_name(conn)
-    return UpcomingPredictionsResponse(rows=rows)
+    return UpcomingPredictionsResponse(rows=rows, event_name=event_name)
 
 @app.post("/admin/recent-fights/scrape", response_model=ScrapeResponse)
 def scrape_recent_fights(payload: RecentScrapeRequest) -> ScrapeResponse:
