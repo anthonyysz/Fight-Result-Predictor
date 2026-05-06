@@ -213,6 +213,7 @@ class UpcomingPredictionRow(BaseModel):
 
 class UpcomingPredictionsResponse(BaseModel):
     rows: list[UpcomingPredictionRow]
+    event_name: str
 
 def get_conninfo() -> str:
     try:
@@ -374,7 +375,7 @@ def fetch_upcoming_prediction_rows(conn) -> list[UpcomingPredictionRow]:
             AND p.red_fighter = f.red_fighter
             AND p.blue_fighter = f.blue_fighter
             AND p.weight_class = f.weight_class
-        ORDER BY p.fight_date, p.red_fighter, p.blue_fighter
+        ORDER BY p.fight_date
     """
 
     with conn.cursor() as cur:
@@ -396,6 +397,27 @@ def fetch_upcoming_prediction_rows(conn) -> list[UpcomingPredictionRow]:
         for row in rows
     ]
 
+def fetch_upcoming_event_name(conn) -> str | None:
+    query = """
+        SELECT DISTINCT m.event_name
+        FROM public.upcoming_metadata m
+        INNER JOIN public.upcoming_predictions p
+            ON m.fight_date = p.fight_date
+            AND m.red_fighter = p.red_fighter
+            AND m.blue_fighter = p.blue_fighter
+        WHERE m.event_name IS NOT NULL
+        ORDER BY m.event_name
+    """
+
+    with conn.cursor() as cur:
+        cur.execute(query)
+        rows = cur.fetchall()
+
+    if not rows:
+        return None
+
+    return rows[0][0]
+
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     return HealthResponse(status="ok")
@@ -403,6 +425,7 @@ def health() -> HealthResponse:
 @app.get("/predictions/upcoming", response_model=UpcomingPredictionsResponse)
 def get_upcoming_predictions(conn=Depends(get_db_connection)) -> UpcomingPredictionsResponse:
     rows = fetch_upcoming_prediction_rows(conn)
+    event_name = fetch_upcoming_event_name(conn)
     return UpcomingPredictionsResponse(rows=rows)
 
 @app.post("/admin/recent-fights/scrape", response_model=ScrapeResponse)

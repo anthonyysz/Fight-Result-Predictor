@@ -47,11 +47,13 @@ const Home = () => {
 
         if (!cancelled) {
           setFightRows(Array.isArray(data.rows) ? data.rows : []);
+          setEventName(data.event_name ?? "");
           setError("");
         }
       } catch (err) {
         if (!cancelled) {
           setFightRows([]);
+          setEventName("");
           setError(err instanceof Error ? err.message : "Failed to load predictions.");
         }
       } finally {
@@ -158,7 +160,9 @@ const Home = () => {
         <div className="home-heading-row">
           <div>
             <p className="home-greeting-text">Upcoming predictions</p>
-            <h1 className="home-title-text"> UFC Perth: Della Maddalena vs. Prates</h1>
+            <h1 className="home-title-text">
+                {eventName || "Upcoming UFC Event"}
+            </h1>
           </div>
 
           <p className="home-bio-text">
