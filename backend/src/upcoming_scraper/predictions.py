@@ -142,7 +142,7 @@ def fetch_upcoming_fights_frame(conn) -> pd.DataFrame:
     query = f"""
         SELECT {', '.join(UPCOMING_SOURCE_DB_COLUMNS)}
         FROM public.upcoming_fights
-        ORDER BY fight_date, red_fighter, blue_fighter
+        ORDER BY fight_date
     """
 
     with conn.cursor() as cur:
