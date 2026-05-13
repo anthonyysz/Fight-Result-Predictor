@@ -191,6 +191,7 @@ DELETE_ORPHANED_UPCOMING_METADATA = """
     )
 """
 
+## Building the metadata csv
 def build_upcoming_metadata(initial_rows: list[dict[str, Any]]) -> str:
     metadata_rows = [
         {
@@ -213,32 +214,32 @@ def to_python_value(value: Any) -> Any:
     item = getattr(value, "item", None)
     return item() if callable(item) else value
 
-
+## Getting our upcoming fights
 def fetch_upcoming_fights_with_metadata(conn) -> pd.DataFrame:
     query = f"""
         SELECT
-            {', '.join(f'uf.{column}' for column in UPCOMING_FIGHT_DB_COLUMNS)},
-            um.fight_url,
-            up.predicted_winner,
-            up.confidence,
-            up.expected_value_red,
-            up.expected_value_blue,
-            up.recommended_bet,
-            up.weight_class_model_used,
-            up.estimator,
-            up.model_params,
-            up.bet_threshold
-        FROM public.upcoming_fights uf
-        LEFT JOIN public.upcoming_metadata um
-            ON uf.fight_date = um.fight_date
-            AND uf.red_fighter = um.red_fighter
-            AND uf.blue_fighter = um.blue_fighter
-        LEFT JOIN public.upcoming_predictions up
-            ON uf.fight_date = up.fight_date
-            AND uf.red_fighter = up.red_fighter
-            AND uf.blue_fighter = up.blue_fighter
-            AND uf.weight_class = up.weight_class
-        ORDER BY uf.fight_date, uf.red_fighter, uf.blue_fighter
+            {', '.join(f'f.{column}' for column in UPCOMING_FIGHT_DB_COLUMNS)},
+            m.fight_url,
+            p.predicted_winner,
+            p.confidence,
+            p.expected_value_red,
+            p.expected_value_blue,
+            p.recommended_bet,
+            p.weight_class_model_used,
+            p.estimator,
+            p.model_params,
+            p.bet_threshold
+        FROM public.upcoming_fights f
+        LEFT JOIN public.upcoming_metadata m
+            ON f.fight_date = m.fight_date
+            AND f.red_fighter = m.red_fighter
+            AND f.blue_fighter = m.blue_fighter
+        LEFT JOIN public.upcoming_predictions p
+            ON f.fight_date = p.fight_date
+            AND f.red_fighter = p.red_fighter
+            AND f.blue_fighter = p.blue_fighter
+            AND f.weight_class = p.weight_class
+        ORDER BY f.fight_date, f.red_fighter, f.blue_fighter
     """
 
     with conn.cursor() as cur:
@@ -266,7 +267,7 @@ def fetch_upcoming_fights_with_metadata(conn) -> pd.DataFrame:
 
     return merged_df
 
-
+## Fight keys and whatnot for distinctness 
 def build_fight_identifier(row: dict[str, Any]) -> str:
     return f"{row['fight_date'].isoformat()} | {row['red_fighter']} vs {row['blue_fighter']} | {row['weight_class']}"
 
@@ -295,7 +296,7 @@ def fight_has_supported_winner(fight_detail: dict[str, Any]) -> bool:
 def has_prediction_row(row: dict[str, Any]) -> bool:
     return pd.notna(row.get("predicted_winner"))
 
-
+## All fights formatting
 def build_all_fights_record(row: dict[str, Any], red_winner: bool) -> tuple[Any, ...]:
     record = {
         "red_fighter": row["red_fighter"],
@@ -315,7 +316,7 @@ def build_all_fights_record(row: dict[str, Any], red_winner: bool) -> tuple[Any,
 
     return tuple(to_python_value(record[column]) for column in ALL_FIGHTS_INSERT_COLUMNS)
 
-
+## Historical predictions formatting
 def build_historical_prediction_record(row: dict[str, Any]) -> tuple[Any, ...]:
     record = {
         **{column: row[column] for column in UPCOMING_FIGHT_DB_COLUMNS},
@@ -332,7 +333,7 @@ def build_historical_prediction_record(row: dict[str, Any]) -> tuple[Any, ...]:
 
     return tuple(to_python_value(record[column]) for column in HISTORICAL_PREDICTION_COLUMNS)
 
-
+## Finishing the fights
 def finish_upcoming_fights(conn) -> dict[str, Any]:
     merged_df = fetch_upcoming_fights_with_metadata(conn)
     session = create_session()
