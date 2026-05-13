@@ -4,14 +4,13 @@ import "../style/navbar.css";
 
 const Navbar = () => {
   const location = useLocation();
-
+//Setting up our navbar with routing
   return (
     <div className="navbar w-full">
       <div className="navbar-content w-full">
         <Link to="/" className="navbar-title">
           Fight Result Predictor
         </Link>
-
         <ul className="navbar-buttons">
           <li className="navbar-item">
             <Link

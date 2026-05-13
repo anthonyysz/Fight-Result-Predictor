@@ -27,7 +27,7 @@ from upcoming_scraper.loaders import (
     finish_upcoming_fights,
 )
 
-
+## Bringing in constants
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.normpath(os.path.join(APP_DIR, "..", ".."))
 RECENT_FIGHTS_CSV_PATH = os.path.join(BACKEND_DIR, "data", "generated", "historical_scraper", "recent_fights.csv")
@@ -92,6 +92,7 @@ CSV_TO_DB_COLUMNS = [
     ("RMatchWCRank", "r_match_wc_rank"),
 ]
 
+## Upserting to all.fights database query
 DB_COLUMNS = [db_column for _, db_column in CSV_TO_DB_COLUMNS] + ["source_name"]
 UPSERT_SQL = (
     f"INSERT INTO public.all_fights ({', '.join(DB_COLUMNS)}) "
@@ -99,6 +100,7 @@ UPSERT_SQL = (
     "ON CONFLICT ON CONSTRAINT all_fights_unique_fight DO NOTHING"
 )
 
+## The load configuration for each of the SQL databases for which I generate a CSV beforehand
 LOAD_CONFIG = {
     "recent": {
         "csv_path": RECENT_FIGHTS_CSV_PATH,
@@ -134,6 +136,7 @@ LOAD_CONFIG = {
     },
 }
 
+## Checking where our front end is, starting with the hosted address, then locally
 def get_frontend_origins() -> list[str]:
     return get_csv_setting("FRONTEND_ORIGINS", ["http://localhost:3000", "http://127.0.0.1:3000"])
 
@@ -147,6 +150,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+## Getting some responses
 class HealthResponse(BaseModel):
     status: str
 
@@ -215,6 +219,7 @@ class UpcomingPredictionsResponse(BaseModel):
     rows: list[UpcomingPredictionRow]
     event_name: str
 
+## Getting connections to the database
 def get_conninfo() -> str:
     try:
         return get_database_conninfo(required=True)
@@ -231,11 +236,10 @@ def get_db_connection() -> Any:
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Database connection failed: {exc}") from exc
 
-
+## Necessary to generate our csvs
 def ensure_file_exists(path: str, label: str) -> None:
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail=f"Missing {label}: {path}")
-
 
 REQUIRED_DB_CSV_COLUMNS = [csv_column for csv_column, _ in CSV_TO_DB_COLUMNS]
 
@@ -343,7 +347,7 @@ def build_duplicate_keys(df: pd.DataFrame) -> set[tuple[Any, Any, Any, Any]]:
         for row in key_rows.itertuples(index=False)
     }
 
-
+## Checking for duplicate fights
 def fetch_existing_fight_keys(conn, dates: list[date]) -> set[tuple[Any, Any, Any, Any]]:
     if not dates:
         return set()
@@ -357,6 +361,7 @@ def fetch_existing_fight_keys(conn, dates: list[date]) -> set[tuple[Any, Any, An
         cur.execute(query, (dates,))
         return {(row[0], row[1], row[2], row[3]) for row in cur.fetchall()}
 
+## Fetching upcoming predictions for the front end
 def fetch_upcoming_prediction_rows(conn) -> list[UpcomingPredictionRow]:
     query = """
         SELECT
@@ -397,6 +402,7 @@ def fetch_upcoming_prediction_rows(conn) -> list[UpcomingPredictionRow]:
         for row in rows
     ]
 
+## Fetching the upcoming event name for the front end
 def fetch_upcoming_event_name(conn) -> str | None:
     query = """
         SELECT DISTINCT m.event_name
@@ -418,16 +424,19 @@ def fetch_upcoming_event_name(conn) -> str | None:
 
     return rows[0][0]
 
+## Health response
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     return HealthResponse(status="ok")
 
+## Fetching the upcoming predictions and event name
 @app.get("/predictions/upcoming", response_model=UpcomingPredictionsResponse)
 def get_upcoming_predictions(conn=Depends(get_db_connection)) -> UpcomingPredictionsResponse:
     rows = fetch_upcoming_prediction_rows(conn)
     event_name = fetch_upcoming_event_name(conn)
     return UpcomingPredictionsResponse(rows=rows, event_name=event_name)
 
+## Scraping for recent historical fights
 @app.post("/admin/recent-fights/scrape", response_model=ScrapeResponse)
 def scrape_recent_fights(payload: RecentScrapeRequest) -> ScrapeResponse:
     start_date = payload.start_date
@@ -447,7 +456,7 @@ def scrape_recent_fights(payload: RecentScrapeRequest) -> ScrapeResponse:
         database_latest_fight_date=summary["database_latest_fight_date"],
     )
 
-
+## Scraping for the upcoming event
 @app.post("/admin/upcoming-fights/scrape", response_model=ScrapeResponse)
 def scrape_upcoming_fights() -> ScrapeResponse:
     summary = run_upcoming_scrape()
@@ -463,7 +472,7 @@ def scrape_upcoming_fights() -> ScrapeResponse:
         event_date=summary["event_date"],
     )
 
-
+## Completing the information for fights that have already happened
 @app.post("/admin/upcoming-fights/finish", response_model=FinishResponse)
 def finish_upcoming_fights_route(conn=Depends(get_db_connection)) -> FinishResponse:
     summary = finish_upcoming_fights(conn)
@@ -478,6 +487,7 @@ def finish_upcoming_fights_route(conn=Depends(get_db_connection)) -> FinishRespo
         pending_fights=summary["pending_fights"],
     )
 
+## Loading fights into the database
 @app.post("/admin/fights/load", response_model=LoadResponse)
 def load_fights(payload: SourceLoadRequest, conn=Depends(get_db_connection)) -> LoadResponse:
     config = LOAD_CONFIG[payload.source]
@@ -550,6 +560,7 @@ def load_fights(payload: SourceLoadRequest, conn=Depends(get_db_connection)) -> 
         incomplete_fights=incomplete_fights,
     )
 
+## Generating predictions for upcoming fights based on the RDS database
 @app.post("/admin/upcoming-predictions/generate", response_model=PredictionGenerateResponse)
 def generate_upcoming_predictions_route(conn=Depends(get_db_connection)) -> PredictionGenerateResponse:
     row_count, predicted_fights = generate_upcoming_predictions(conn)

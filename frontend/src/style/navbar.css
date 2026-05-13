@@ -58,6 +58,7 @@
   color: var(--accent-color);
 }
 
+/* Setting things up for a different sized screen */
 @media (max-width: 640px) {
   .navbar {
     height: auto;

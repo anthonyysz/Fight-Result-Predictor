@@ -18,6 +18,7 @@ UPCOMING_METADATA_CSV_PATH = os.path.join(
     BACKEND_DIR, "data", "generated", "upcoming_scraper", "upcoming_fights_metadata.csv"
 )
 
+## Getting our fight columns
 UPCOMING_CSV_TO_DB_COLUMNS = [
     ("RedFighter", "red_fighter"),
     ("BlueFighter", "blue_fighter"),
@@ -75,6 +76,7 @@ UPCOMING_CSV_TO_DB_COLUMNS = [
     ("RMatchWCRank", "r_match_wc_rank"),
 ]
 
+## Getting our metadata columns
 UPCOMING_METADATA_CSV_TO_DB_COLUMNS = [
     ("Date", "fight_date"),
     ("RedFighter", "red_fighter"),
@@ -91,6 +93,7 @@ UPCOMING_METADATA_DB_COLUMNS = [db_column for _, db_column in UPCOMING_METADATA_
 
 UPCOMING_FIGHT_DB_COLUMNS = UPCOMING_DB_COLUMNS + ["loaded_at"]
 
+## Inserting columns to upcoming fights table
 ALL_FIGHTS_INSERT_COLUMNS = [
     "red_fighter",
     "blue_fighter",
@@ -107,6 +110,7 @@ ALL_FIGHTS_INSERT_COLUMNS = [
     "source_name",
 ]
 
+## Inserting columns to historical predictions
 HISTORICAL_PREDICTION_COLUMNS = [
     *UPCOMING_FIGHT_DB_COLUMNS,
     "model_picked_red_winner",
@@ -120,6 +124,7 @@ HISTORICAL_PREDICTION_COLUMNS = [
     "bet_threshold",
 ]
 
+## Upsert function / clearing the old data out first
 def build_upsert_sql(table_name: str, columns: list[str], constraint_name: str) -> str:
     return (
         f"INSERT INTO public.{table_name} ({', '.join(columns)}) "

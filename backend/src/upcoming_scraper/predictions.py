@@ -75,7 +75,7 @@ def is_missing_s3_object(exc: ClientError) -> bool:
     error_code = str(exc.response.get("Error", {}).get("Code", ""))
     return error_code in {"404", "NoSuchKey", "NotFound"}
 
-
+## Getting the model
 def download_model_from_s3(file_name: str) -> Path:
     try:
         bucket, prefix = get_model_storage_settings()
@@ -138,6 +138,7 @@ def get_prediction_bundle(weight_class: str) -> dict[str, Any]:
 
     return bundle
 
+## Getting the upcoming fight
 def fetch_upcoming_fights_frame(conn) -> pd.DataFrame:
     query = f"""
         SELECT {', '.join(UPCOMING_SOURCE_DB_COLUMNS)}
@@ -158,7 +159,7 @@ def fetch_upcoming_fights_frame(conn) -> pd.DataFrame:
 
     return pd.DataFrame(rows, columns=columns)
 
-
+## Preparing and generating the prediction
 def prepare_prediction_frame(df: pd.DataFrame) -> pd.DataFrame:
     prepared = df.rename(columns=DB_TO_MODEL_COLUMNS).copy()
     prepared["Date"] = pd.to_datetime(prepared["Date"])

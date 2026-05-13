@@ -14,6 +14,7 @@ const normalizeApiBaseUrl = (value) => {
 
 const API_BASE_URL = normalizeApiBaseUrl(process.env.REACT_APP_API_BASE_URL);
 
+// Bringing in our rows and event information
 const formatOdds = (odds) => {
   const numericOdds = Number(odds);
   return numericOdds > 0 ? `+${numericOdds}` : `${numericOdds}`;
@@ -36,6 +37,7 @@ const Home = () => {
   useEffect(() => {
     let cancelled = false;
 
+    // Taking a look at what our API shows us for predictions
     const loadPredictions = async () => {
       try {
         const response = await fetch(`${API_BASE_URL}/predictions/upcoming`);
@@ -71,6 +73,7 @@ const Home = () => {
     };
   }, []);
 
+  // Bringing in something for the front end in case of an error
   const renderStatusRow = (message) => {
     return (
       <div className="fight-table-row" key={message}>
@@ -118,6 +121,7 @@ const Home = () => {
       return [renderStatusRow("No upcoming predictions are available yet.")];
     }
 
+    // Mapping fighter and bout information to the front end
     return fightRows.map((row) => (
       <div className="fight-table-row" key={buildRowKey(row)}>
         <div className="fight-table-item fighter-item">
@@ -154,7 +158,7 @@ const Home = () => {
       </div>
     ));
   };
-
+//Bringing in the event name and styling, setting the fight table shell formatting
   return (
     <div className="home-screen w-full">
       <div className="home-container mx-auto">

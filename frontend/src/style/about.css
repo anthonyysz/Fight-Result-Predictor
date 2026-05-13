@@ -78,6 +78,7 @@
   color: var(--text-color);
 }
 
+/* Setting things up for different sized screens */
 @media (max-width: 800px) {
   .about-grid-item-top,
   .about-grid-item-bottom {

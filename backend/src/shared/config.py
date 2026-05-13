@@ -94,7 +94,7 @@ def get_database_conninfo(required: bool = True) -> str | None:
 
     file_split_values = {key: file_values.get(key) for key in DB_REQUIRED_KEYS}
     if all(file_split_values.values()):
-        return build_conninfo(file_split_values)  # type: ignore[arg-type]
+        return build_conninfo(file_split_values)
 
     if required:
         raise ValueError(

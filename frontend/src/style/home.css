@@ -130,6 +130,7 @@
   color: var(--paragraph-color);
 }
 
+/* Setting things up for different sized screens */
 @media (max-width: 900px) {
   .home-heading-row {
     flex-direction: column;
