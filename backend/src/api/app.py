@@ -6,8 +6,9 @@ from typing import Any, Literal
 
 import pandas as pd
 import psycopg
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
+from api.stats import render_average_return_chart
 from pydantic import BaseModel
 from shared.config import get_csv_setting, get_database_conninfo
 from upcoming_scraper.predictions import generate_upcoming_predictions
@@ -435,6 +436,16 @@ def get_upcoming_predictions(conn=Depends(get_db_connection)) -> UpcomingPredict
     rows = fetch_upcoming_prediction_rows(conn)
     event_name = fetch_upcoming_event_name(conn)
     return UpcomingPredictionsResponse(rows=rows, event_name=event_name)
+
+## Fetching a generated average return chart for the front end
+@app.get("/stats/average-return-chart")
+def get_average_return_chart(conn=Depends(get_db_connection)) -> Response:
+    chart_bytes = render_average_return_chart(conn)
+    return Response(
+        content=chart_bytes,
+        media_type="image/png",
+        headers={"Cache-Control": "no-store"},
+    )
 
 ## Scraping for recent historical fights
 @app.post("/admin/recent-fights/scrape", response_model=ScrapeResponse)

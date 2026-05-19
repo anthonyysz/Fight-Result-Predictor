@@ -159,7 +159,7 @@ def fetch_upcoming_fights_frame(conn) -> pd.DataFrame:
 
     return pd.DataFrame(rows, columns=columns)
 
-## Preparing and generating the prediction
+## Preparing the database for prediction
 def prepare_prediction_frame(df: pd.DataFrame) -> pd.DataFrame:
     prepared = df.rename(columns=DB_TO_MODEL_COLUMNS).copy()
     prepared["Date"] = pd.to_datetime(prepared["Date"])
@@ -196,6 +196,7 @@ def build_prediction_record(source_row: pd.Series, prediction: pd.Series) -> tup
 
     return tuple(to_python_value(record[column]) for column in UPCOMING_PREDICTION_COLUMNS)
 
+## Generating the prediction
 def generate_upcoming_predictions(conn) -> tuple[int, list[str]]:
     source_df = fetch_upcoming_fights_frame(conn)
     prediction_df = prepare_prediction_frame(source_df)

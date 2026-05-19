@@ -117,7 +117,8 @@ HISTORICAL_PREDICTION_COLUMNS = [
     "confidence",
     "expected_value_red",
     "expected_value_blue",
-    "model_picked_red_bet",
+    "model_pick",
+    "model_return",
     "weight_class_model_used",
     "estimator",
     "model_params",
@@ -316,15 +317,33 @@ def build_all_fights_record(row: dict[str, Any], red_winner: bool) -> tuple[Any,
 
     return tuple(to_python_value(record[column]) for column in ALL_FIGHTS_INSERT_COLUMNS)
 
+def calculate_model_return(row: dict[str, Any], red_winner: bool) -> float | None:
+    model_pick = row["recommended_bet"]
+
+    if model_pick == "Pass":
+        return 1.0
+
+    if model_pick == row["red_fighter"]:
+        return american_profit_multiple(row["red_odds"], red_winner)
+
+    if model_pick == row["blue_fighter"]:
+        return american_profit_multiple(row["blue_odds"], not red_winner)
+
+    raise HTTPException(
+        status_code=400,
+        detail=f"Unsupported recommended bet for historical prediction: {model_pick}",
+    )
+
 ## Historical predictions formatting
-def build_historical_prediction_record(row: dict[str, Any]) -> tuple[Any, ...]:
+def build_historical_prediction_record(row: dict[str, Any], red_winner: bool) -> tuple[Any, ...]:
     record = {
         **{column: row[column] for column in UPCOMING_FIGHT_DB_COLUMNS},
         "model_picked_red_winner": row["predicted_winner"] == row["red_fighter"],
         "confidence": row["confidence"],
         "expected_value_red": row["expected_value_red"],
         "expected_value_blue": row["expected_value_blue"],
-        "model_picked_red_bet": row["recommended_bet"] == row["red_fighter"],
+        "model_pick": row["recommended_bet"],
+        "model_return": calculate_model_return(row, red_winner),
         "weight_class_model_used": row["weight_class_model_used"],
         "estimator": row["estimator"],
         "model_params": row["model_params"],
@@ -362,7 +381,7 @@ def finish_upcoming_fights(conn) -> dict[str, Any]:
             all_fights_records.append(build_all_fights_record(row_dict, red_winner))
 
             if has_prediction_row(row_dict):
-                historical_prediction_records.append(build_historical_prediction_record(row_dict))
+                historical_prediction_records.append(build_historical_prediction_record(row_dict, red_winner))
 
             upcoming_fight_deletes.append(build_upcoming_fight_key(row_dict))
             upcoming_metadata_deletes.append(build_upcoming_metadata_key(row_dict))

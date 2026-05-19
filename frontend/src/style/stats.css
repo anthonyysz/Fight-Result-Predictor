@@ -1,0 +1,118 @@
+/* Setting up the screen and the column the way I want it */
+.stats-screen {
+  width: 100%;
+  min-height: 100vh;
+  padding-top: 112px;
+  padding-bottom: 32px;
+}
+
+.stats-container {
+  max-width: 1100px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 24px;
+  padding-right: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.stats-heading-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
+}
+
+.stats-greeting-text {
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent-color);
+  margin-bottom: 8px;
+}
+
+.stats-title-text {
+  font-size: 34px;
+  line-height: 40px;
+  font-weight: bold;
+}
+
+.stats-bio-text {
+  font-size: 18px;
+  line-height: 28px;
+  color: var(--paragraph-color);
+  max-width: 460px;
+  text-align: right;
+}
+
+.stats-chart-shell {
+  width: 100%;
+  min-height: 420px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  background-color: var(--panel-color);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  box-shadow: var(--shadow-color);
+}
+
+.stats-chart-image {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+}
+
+.stats-chart-image.is-hidden {
+  display: none;
+}
+
+.stats-status-message {
+  color: var(--paragraph-color);
+  font-size: 18px;
+  line-height: 28px;
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .stats-heading-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .stats-bio-text {
+    max-width: none;
+    text-align: left;
+  }
+}
+
+@media (max-width: 640px) {
+  .stats-screen {
+    padding-top: 130px;
+  }
+
+  .stats-container {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .stats-title-text {
+    font-size: 28px;
+    line-height: 34px;
+  }
+
+  .stats-bio-text,
+  .stats-status-message {
+    font-size: 16px;
+    line-height: 24px;
+  }
+
+  .stats-chart-shell {
+    min-height: 300px;
+    padding: 12px;
+  }
+}

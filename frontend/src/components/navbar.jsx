@@ -30,6 +30,16 @@ const Navbar = () => {
               About
             </Link>
           </li>
+          <li className="navbar-item">
+            <Link
+              to="/stats"
+              className={
+                location.pathname === "/stats" ? "navbar-link active-link" : "navbar-link"
+              }
+            >
+              Stats
+            </Link>
+          </li>
         </ul>
       </div>
     </div>

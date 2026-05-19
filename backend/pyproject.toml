@@ -19,6 +19,8 @@ dependencies = [
     "xgboost",
     "joblib",
     "boto3",
+    "matplotlib",
+    "seaborn",
 ]
 
 [tool.setuptools]
