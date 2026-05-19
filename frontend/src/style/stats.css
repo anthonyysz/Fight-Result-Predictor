@@ -78,6 +78,7 @@
   text-align: center;
 }
 
+/* Different screen sizes */ 
 @media (max-width: 900px) {
   .stats-heading-row {
     flex-direction: column;

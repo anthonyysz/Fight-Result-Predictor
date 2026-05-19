@@ -29,7 +29,8 @@ const Stats = () => {
           </div>
 
           <p className="stats-bio-text">
-            Model return by completed fight date
+            Average Model Return Rate per Fight Card<br></br>
+            (This will look more readable as more fights happen)
           </p>
         </div>
 

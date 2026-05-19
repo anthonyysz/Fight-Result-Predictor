@@ -240,7 +240,7 @@ def fetch_upcoming_fights_with_metadata(conn) -> pd.DataFrame:
             AND f.red_fighter = p.red_fighter
             AND f.blue_fighter = p.blue_fighter
             AND f.weight_class = p.weight_class
-        ORDER BY f.fight_date, f.red_fighter, f.blue_fighter
+        ORDER BY f.fight_date
     """
 
     with conn.cursor() as cur:
