@@ -76,7 +76,6 @@ def render_average_return_chart(conn: Any) -> bytes:
     ax.set_title("Average Return by Fight Date", fontsize=18, fontweight="bold", pad=16)
     ax.set_xlabel("Fight Date", labelpad=10)
     ax.set_ylabel("Average Return", labelpad=10)
-    ax.set_lim(0, 2)
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %d"))
     ax.tick_params(axis="x", rotation=35)
     ax.margins(x=0.04, y=0.12)
