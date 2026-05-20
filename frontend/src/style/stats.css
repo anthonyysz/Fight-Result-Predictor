@@ -60,6 +60,10 @@
   box-shadow: var(--shadow-color);
 }
 
+.stats-table-chart-shell {
+  min-height: 320px;
+}
+
 .stats-chart-image {
   display: block;
   width: 100%;

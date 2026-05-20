@@ -123,6 +123,7 @@ HISTORICAL_PREDICTION_COLUMNS = [
     "estimator",
     "model_params",
     "bet_threshold",
+    "event_name",
 ]
 
 ## Upsert function / clearing the old data out first
@@ -220,6 +221,7 @@ def fetch_upcoming_fights_with_metadata(conn) -> pd.DataFrame:
     query = f"""
         SELECT
             {', '.join(f'f.{column}' for column in UPCOMING_FIGHT_DB_COLUMNS)},
+            m.event_name,
             m.fight_url,
             p.predicted_winner,
             p.confidence,
@@ -259,6 +261,19 @@ def fetch_upcoming_fights_with_metadata(conn) -> pd.DataFrame:
             status_code=400,
             detail={
                 "message": "Upcoming metadata is missing one or more fight URLs",
+                "missing_fights": [
+                    f"{row.fight_date.isoformat()} | {row.red_fighter} vs {row.blue_fighter}"
+                    for row in missing_rows.itertuples(index=False)
+                ],
+            },
+        )
+
+    if merged_df["event_name"].isna().any():
+        missing_rows = merged_df.loc[merged_df["event_name"].isna(), ["fight_date", "red_fighter", "blue_fighter"]]
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": "Upcoming metadata is missing one or more event names",
                 "missing_fights": [
                     f"{row.fight_date.isoformat()} | {row.red_fighter} vs {row.blue_fighter}"
                     for row in missing_rows.itertuples(index=False)
@@ -348,6 +363,7 @@ def build_historical_prediction_record(row: dict[str, Any], red_winner: bool) ->
         "estimator": row["estimator"],
         "model_params": row["model_params"],
         "bet_threshold": row["bet_threshold"],
+        "event_name": row["event_name"],
     }
 
     return tuple(to_python_value(record[column]) for column in HISTORICAL_PREDICTION_COLUMNS)

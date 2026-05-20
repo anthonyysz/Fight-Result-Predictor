@@ -130,6 +130,7 @@ CREATE TABLE IF NOT EXISTS public.historical_predictions (
     estimator text NOT NULL,
     model_params text NOT NULL,
     bet_threshold numeric NOT NULL,
+    event_name text NOT NULL,
     CONSTRAINT historical_predictions_model_pick_valid CHECK (model_pick = 'Pass' OR model_pick = red_fighter OR model_pick = blue_fighter),
     CONSTRAINT historical_predictions_unique_fight UNIQUE (fight_date, red_fighter, blue_fighter, weight_class)
 );

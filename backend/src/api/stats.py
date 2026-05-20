@@ -21,6 +21,7 @@ def fetch_average_return_frame(conn) -> pd.DataFrame:
             AVG(model_return)::float AS average_return,
             COUNT(*) AS fight_count
         FROM public.historical_predictions
+        WHERE model_return != 1
         GROUP BY fight_date
         ORDER BY fight_date
     """
@@ -34,6 +35,39 @@ def fetch_average_return_frame(conn) -> pd.DataFrame:
         raise HTTPException(
             status_code=409,
             detail="No historical prediction returns are available.",
+        )
+
+    frame = pd.DataFrame(rows, columns=columns)
+    frame["fight_date"] = pd.to_datetime(frame["fight_date"])
+    frame["average_return"] = pd.to_numeric(frame["average_return"])
+    frame["fight_count"] = pd.to_numeric(frame["fight_count"])
+    return frame
+
+
+def fetch_top_betting_events_frame(conn) -> pd.DataFrame:
+    query = """
+        SELECT
+            event_name,
+            AVG(model_return)::float AS average_return,
+            COUNT(*) AS fight_count,
+            fight_date
+        FROM public.historical_predictions
+        WHERE model_return != 1
+          AND event_name IS NOT NULL
+        GROUP BY event_name, fight_date
+        ORDER BY average_return DESC, fight_count DESC, fight_date DESC
+        LIMIT 5
+    """
+
+    with conn.cursor() as cur:
+        cur.execute(query)
+        rows = cur.fetchall()
+        columns = [column.name for column in cur.description]
+
+    if not rows:
+        raise HTTPException(
+            status_code=409,
+            detail="No betting event returns are available.",
         )
 
     frame = pd.DataFrame(rows, columns=columns)
@@ -82,6 +116,57 @@ def render_average_return_chart(conn: Any) -> bytes:
 
     for spine in ax.spines.values():
         spine.set_color("#4e545c")
+
+    buffer = BytesIO()
+    fig.tight_layout()
+    fig.savefig(buffer, format="png", bbox_inches="tight", facecolor=fig.get_facecolor())
+    plt.close(fig)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+def render_top_betting_events_chart(conn: Any) -> bytes:
+    frame = fetch_top_betting_events_frame(conn).copy()
+    frame["average_return"] = frame["average_return"].map(lambda value: f"{value:.2f}")
+    frame["fight_count"] = frame["fight_count"].astype(int).astype(str)
+    frame["fight_date"] = frame["fight_date"].dt.strftime("%b %d, %Y")
+    frame = frame.rename(
+        columns={
+            "event_name": "Event Name",
+            "average_return": "Average Return",
+            "fight_count": "Number of Fights",
+            "fight_date": "Date of Event",
+        }
+    )
+
+    sns.set_theme(style="dark")
+    fig, ax = plt.subplots(figsize=(11, 3.8), dpi=160)
+    fig.patch.set_facecolor("#34393f")
+    ax.set_facecolor("#34393f")
+    ax.axis("off")
+    ax.set_title("Top 5 Betting Events", fontsize=18, fontweight="bold", color="#e7e9ec", pad=16)
+
+    table = ax.table(
+        cellText=frame[["Event Name", "Average Return", "Number of Fights", "Date of Event"]].values,
+        colLabels=["Event Name", "Average Return", "Number of Fights", "Date of Event"],
+        cellLoc="left",
+        colLoc="left",
+        loc="center",
+        colWidths=[0.48, 0.17, 0.17, 0.18],
+    )
+    table.auto_set_font_size(False)
+    table.set_fontsize(10)
+    table.scale(1, 1.65)
+
+    for (row_idx, _), cell in table.get_celld().items():
+        cell.set_edgecolor("#4e545c")
+        cell.set_linewidth(0.8)
+        if row_idx == 0:
+            cell.set_facecolor("#222529")
+            cell.set_text_props(color="#f08a24", weight="bold")
+        else:
+            cell.set_facecolor("#34393f" if row_idx % 2 else "#3b4047")
+            cell.set_text_props(color="#e7e9ec")
 
     buffer = BytesIO()
     fig.tight_layout()

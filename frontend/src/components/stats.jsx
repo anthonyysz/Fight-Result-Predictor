@@ -13,11 +13,14 @@ const normalizeApiBaseUrl = (value) => {
 };
 
 const API_BASE_URL = normalizeApiBaseUrl(process.env.REACT_APP_API_BASE_URL);
-const CHART_URL = `${API_BASE_URL}/stats/average-return-chart`;
+const AVERAGE_RETURN_CHART_URL = `${API_BASE_URL}/stats/average-return-chart`;
+const TOP_EVENTS_CHART_URL = `${API_BASE_URL}/stats/top-betting-events-chart`;
 
 const Stats = () => {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [averageReturnLoading, setAverageReturnLoading] = useState(true);
+  const [averageReturnError, setAverageReturnError] = useState("");
+  const [topEventsLoading, setTopEventsLoading] = useState(true);
+  const [topEventsError, setTopEventsError] = useState("");
 
   return (
     <div className="stats-screen w-full">
@@ -35,25 +38,57 @@ const Stats = () => {
         </div>
 
         <div className="stats-chart-shell">
-          {loading && !error ? (
+          {averageReturnLoading && !averageReturnError ? (
             <div className="stats-status-message">Loading return chart...</div>
           ) : null}
 
-          {error ? (
-            <div className="stats-status-message">{error}</div>
+          {averageReturnError ? (
+            <div className="stats-status-message">{averageReturnError}</div>
           ) : null}
 
           <img
-            className={loading || error ? "stats-chart-image is-hidden" : "stats-chart-image"}
-            src={CHART_URL}
+            className={
+              averageReturnLoading || averageReturnError
+                ? "stats-chart-image is-hidden"
+                : "stats-chart-image"
+            }
+            src={AVERAGE_RETURN_CHART_URL}
             alt="Line chart showing average model return by fight date"
             onLoad={() => {
-              setLoading(false);
-              setError("");
+              setAverageReturnLoading(false);
+              setAverageReturnError("");
             }}
             onError={() => {
-              setLoading(false);
-              setError("Unable to load the return chart.");
+              setAverageReturnLoading(false);
+              setAverageReturnError("Unable to load the return chart.");
+            }}
+          />
+        </div>
+
+        <div className="stats-chart-shell stats-table-chart-shell">
+          {topEventsLoading && !topEventsError ? (
+            <div className="stats-status-message">Loading top betting events...</div>
+          ) : null}
+
+          {topEventsError ? (
+            <div className="stats-status-message">{topEventsError}</div>
+          ) : null}
+
+          <img
+            className={
+              topEventsLoading || topEventsError
+                ? "stats-chart-image is-hidden"
+                : "stats-chart-image"
+            }
+            src={TOP_EVENTS_CHART_URL}
+            alt="Table chart showing top five betting events by average return"
+            onLoad={() => {
+              setTopEventsLoading(false);
+              setTopEventsError("");
+            }}
+            onError={() => {
+              setTopEventsLoading(false);
+              setTopEventsError("Unable to load the top betting events chart.");
             }}
           />
         </div>
