@@ -9,6 +9,7 @@ WORKDIR /app/backend
 
 # Copying my backend and data files
 COPY backend /app/backend/ 
+COPY models /app/models/
 
 # Installing backend package from pyproject.toml
 RUN pip install --upgrade pip && pip install --no-cache-dir -e .

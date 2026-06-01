@@ -6,7 +6,6 @@ numpy
 scikit-learn
 xgboost
 joblib
-boto3
 matplotlib
 seaborn
 playwright

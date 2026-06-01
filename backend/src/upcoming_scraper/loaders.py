@@ -136,16 +136,38 @@ def build_upsert_sql(table_name: str, columns: list[str], constraint_name: str) 
     )
 
 
-UPSERT_UPCOMING = build_upsert_sql(
+def build_update_upsert_sql(
+    table_name: str,
+    columns: list[str],
+    constraint_name: str,
+    key_columns: set[str],
+    touch_loaded_at: bool = True,
+) -> str:
+    update_columns = [column for column in columns if column not in key_columns]
+    update_assignments = [f"{column} = EXCLUDED.{column}" for column in update_columns]
+    if touch_loaded_at:
+        update_assignments.append("loaded_at = now()")
+    return (
+        f"INSERT INTO public.{table_name} ({', '.join(columns)}) "
+        f"VALUES ({', '.join(['%s'] * len(columns))}) "
+        f"ON CONFLICT ON CONSTRAINT {constraint_name} DO UPDATE SET "
+        f"{', '.join(update_assignments)}"
+    )
+
+
+UPSERT_UPCOMING = build_update_upsert_sql(
     table_name="upcoming_fights",
     columns=UPCOMING_DB_COLUMNS,
     constraint_name="upcoming_fights_unique_fight",
+    key_columns={"fight_date", "red_fighter", "blue_fighter", "weight_class"},
 )
 
-UPSERT_UPCOMING_METADATA = build_upsert_sql(
+UPSERT_UPCOMING_METADATA = build_update_upsert_sql(
     table_name="upcoming_metadata",
     columns=UPCOMING_METADATA_DB_COLUMNS,
     constraint_name="upcoming_metadata_unique_fight",
+    key_columns={"fight_date", "red_fighter", "blue_fighter"},
+    touch_loaded_at=False,
 )
 
 INSERT_ALL_FIGHTS = build_upsert_sql(

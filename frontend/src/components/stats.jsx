@@ -20,8 +20,8 @@ const Stats = () => {
           </div>
 
           <p className="stats-bio-text">
-            Track how the model has performed so far, then join the list to get
-            the next fight card picks delivered before the weekend.
+            Track how the model has performed so far across completed fight
+            cards and historical prediction results.
           </p>
         </div>
 
@@ -81,29 +81,6 @@ const Stats = () => {
           />
         </div>
 
-        <section className="stats-cta-shell" aria-labelledby="email-cta-title">
-          <div className="stats-cta-copy">
-            <p className="stats-greeting-text">Weekly picks by email</p>
-            <h2 className="stats-cta-title" id="email-cta-title">
-              Want the full upcoming fight table?
-            </h2>
-            <p className="stats-cta-text">
-              The public site now highlights long-term performance. Upcoming
-              picks and the full fight card table will be sent through an email
-              list once the subscription flow is ready.
-            </p>
-          </div>
-
-          <div className="stats-cta-actions">
-            <button className="stats-cta-button" type="button" disabled>
-              Email signup coming soon
-            </button>
-            <p className="stats-cta-note">
-              Until the email list goes live, this section is a placeholder for
-              the future subscription experience.
-            </p>
-          </div>
-        </section>
       </div>
     </div>
   );

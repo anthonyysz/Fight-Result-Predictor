@@ -6,10 +6,10 @@
   - Historical and upcoming fight scrapers
   - Model backtesting, training and selection
   - All data, generated or referenced
-  - FastAPI functions to scrape, load, predict, and resolve data
+  - Local FastAPI functions to scrape, load, predict, resolve data, and queue fight week email reports
 - `frontend/`
   - Front end react app
-  - API connection to the RDS database
+  - Static signup and stats site
 - `models/`
   - Most recent model versions
 - `notebooks/`
@@ -47,7 +47,7 @@
 
 ## 4. The Front End
 
-&nbsp;&nbsp;I built the front end using react and tailwind. My front end experience is limited, so I stuck with what I know and built something basic. I was able to connect the front end directly to my PostgreSQL database in RDS, so once data is pushed live to the cloud, my front end will update. I have my front end stored in an S3 bucket, so CodeBuild and CodePipeline will automatically update the live site once any changes are pushed to my main GitHub branch.
+&nbsp;&nbsp;I built the front end using react and tailwind. My front end experience is limited, so I stuck with what I know and built something basic. The public home page now collects mailing list subscribers through a Mailchimp embedded form, while model updates and fight week reports run from the local backend.
 
 ## 5. The Back End
 
@@ -67,7 +67,7 @@
 
 ### 5c. Model Training and API Integration
 
-&nbsp;&nbsp;For the model training section, I just copied my code from my backtesting notebook. Code that wasn't previously a function was made into one. My FastAPI app is used to run the scrapers, generate predictions, and load csv files into the database. There is a separate README.md for the back end that explains how to use everything.
+&nbsp;&nbsp;For the model training section, I just copied my code from my backtesting notebook. Code that wasn't previously a function was made into one. My FastAPI app is used locally to run the scrapers, generate predictions, load csv files into the database, and generate Mailchimp-ready fight week reports. There is a separate README.md for the back end that explains how to use everything.
 
 ## 6. Looking ahead
 

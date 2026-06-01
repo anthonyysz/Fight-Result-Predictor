@@ -1,192 +1,72 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import "../style/home.css";
 
-const DEFAULT_LOCAL_API_BASE_URL = "http://127.0.0.1:8000";
-
-const normalizeApiBaseUrl = (value) => {
-  if (!value) {
-    return DEFAULT_LOCAL_API_BASE_URL;
-  }
-
-  const trimmed = value.trim().replace(/\/+$/, "");
-  return trimmed || DEFAULT_LOCAL_API_BASE_URL;
-};
-
-const API_BASE_URL = normalizeApiBaseUrl(process.env.REACT_APP_API_BASE_URL);
-
-// Bringing in our rows and event information
-const formatOdds = (odds) => {
-  const numericOdds = Number(odds);
-  return numericOdds > 0 ? `+${numericOdds}` : `${numericOdds}`;
-};
-
-const formatConfidence = (confidence) => {
-  return `${Math.round(Number(confidence) * 100)}%`;
-};
-
-const buildRowKey = (row) => {
-  return `${row.fight_date}-${row.red_fighter}-${row.blue_fighter}-${row.weight_class}`;
-};
+const MAILCHIMP_SIGNUP_ACTION = (process.env.REACT_APP_MAILCHIMP_SIGNUP_ACTION || "").trim();
 
 const Home = () => {
-  const [fightRows, setFightRows] = useState([]);
-  const [eventName, setEventName] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const signupIsReady = MAILCHIMP_SIGNUP_ACTION.length > 0;
 
-  useEffect(() => {
-    let cancelled = false;
-
-    // Taking a look at what our API shows us for predictions
-    const loadPredictions = async () => {
-      try {
-        const response = await fetch(`${API_BASE_URL}/predictions/upcoming`);
-
-        if (!response.ok) {
-          throw new Error(`Request failed with status ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        if (!cancelled) {
-          setFightRows(Array.isArray(data.rows) ? data.rows : []);
-          setEventName(data.event_name ?? "");
-          setError("");
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setFightRows([]);
-          setEventName("");
-          setError(err instanceof Error ? err.message : "Failed to load predictions.");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    };
-
-    loadPredictions();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Bringing in something for the front end in case of an error
-  const renderStatusRow = (message) => {
-    return (
-      <div className="fight-table-row" key={message}>
-        <div className="fight-table-item fighter-item">
-          <div className="fighter-row">
-            <span className="corner-label red-corner">Status</span>
-            <span className="fighter-name">{message}</span>
-          </div>
-        </div>
-
-        <div className="fight-table-item odds-item">
-          <span>--</span>
-          <span>--</span>
-        </div>
-
-        <div className="fight-table-item data-item" data-label="Weight">
-          --
-        </div>
-
-        <div className="fight-table-item data-item" data-label="Winner?">
-          --
-        </div>
-
-        <div className="fight-table-item data-item" data-label="Confidence">
-          --
-        </div>
-
-        <div className="fight-table-item data-item" data-label="Pick/Pass">
-          --
-        </div>
-      </div>
-    );
-  };
-
-  const renderTableRows = () => {
-    if (loading) {
-      return [renderStatusRow("Loading upcoming predictions...")];
-    }
-
-    if (error) {
-      return [renderStatusRow(`Unable to load predictions: ${error}`)];
-    }
-
-    if (fightRows.length === 0) {
-      return [renderStatusRow("No upcoming predictions are available yet.")];
-    }
-
-    // Mapping fighter and bout information to the front end
-    return fightRows.map((row) => (
-      <div className="fight-table-row" key={buildRowKey(row)}>
-        <div className="fight-table-item fighter-item">
-          <div className="fighter-row">
-            <span className="corner-label red-corner">Red Corner</span>
-            <span className="fighter-name">{row.red_fighter}</span>
-          </div>
-          <div className="fighter-row">
-            <span className="corner-label blue-corner">Blue Corner</span>
-            <span className="fighter-name">{row.blue_fighter}</span>
-          </div>
-        </div>
-
-        <div className="fight-table-item odds-item">
-          <span>{formatOdds(row.red_odds)}</span>
-          <span>{formatOdds(row.blue_odds)}</span>
-        </div>
-
-        <div className="fight-table-item data-item" data-label="Weight">
-          {row.weight_class}
-        </div>
-
-        <div className="fight-table-item data-item" data-label="Winner?">
-          {row.predicted_winner}
-        </div>
-
-        <div className="fight-table-item data-item" data-label="Confidence">
-          {formatConfidence(row.confidence)}
-        </div>
-
-        <div className="fight-table-item data-item" data-label="Pick/Pass">
-          {row.recommended_bet}
-        </div>
-      </div>
-    ));
-  };
-//Bringing in the event name and styling, setting the fight table shell formatting
   return (
     <div className="home-screen w-full">
       <div className="home-container mx-auto">
         <div className="home-heading-row">
           <div>
-            <p className="home-greeting-text">Upcoming predictions</p>
-            <h1 className="home-title-text">
-                {eventName || "Upcoming UFC Event"}
-            </h1>
+            <p className="home-greeting-text">Fight week emails</p>
+            <h1 className="home-title-text">UFC picks, twice on fight weeks</h1>
           </div>
 
           <p className="home-bio-text">
-            Odds will, of course, change throughout fight week
+            Early reads go out Monday at noon Eastern. Updated picks go out
+            Friday at noon Eastern when there is a weekend card.
           </p>
         </div>
 
-        <div className="fight-table-shell w-full">
-          <div className="fight-table-header">
-            <div className="fight-table-header-item">Fighter</div>
-            <div className="fight-table-header-item">Odds</div>
-            <div className="fight-table-header-item">Weight</div>
-            <div className="fight-table-header-item">Winner?</div>
-            <div className="fight-table-header-item">Confidence</div>
-            <div className="fight-table-header-item">Pick/Pass</div>
+        <section className="home-signup-shell" aria-labelledby="mailing-list-title">
+          <div className="home-signup-copy">
+            <p className="home-greeting-text">Mailing list</p>
+            <h2 className="home-signup-title" id="mailing-list-title">
+              Get the fight card report
+            </h2>
+            <p className="home-signup-text">
+              The report includes every modeled matchup, odds, predicted winner,
+              confidence, expected value, and pick/pass recommendation.
+            </p>
           </div>
 
-          <div className="fight-table-body">{renderTableRows()}</div>
-        </div>
+          {signupIsReady ? (
+            <form
+              className="home-signup-form"
+              action={MAILCHIMP_SIGNUP_ACTION}
+              method="post"
+              target="_blank"
+              noValidate
+            >
+              <label className="home-signup-label" htmlFor="mce-EMAIL">
+                Email address
+              </label>
+              <div className="home-signup-controls">
+                <input
+                  className="home-signup-input"
+                  id="mce-EMAIL"
+                  name="EMAIL"
+                  type="email"
+                  autoComplete="email"
+                  required
+                />
+                <button className="home-signup-button" type="submit">
+                  Subscribe
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="home-signup-form">
+              <p className="home-signup-text">
+                Email signup will appear here after the Mailchimp embedded form
+                URL is added to the frontend environment.
+              </p>
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );

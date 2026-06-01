@@ -48,6 +48,77 @@
   text-align: right;
 }
 
+.home-signup-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
+  gap: 24px;
+  padding: 28px;
+  background-color: var(--panel-color);
+  border: 1px solid rgba(240, 138, 36, 0.22);
+  border-radius: 20px;
+  box-shadow: var(--shadow-color);
+}
+
+.home-signup-copy,
+.home-signup-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.home-signup-title {
+  font-size: 30px;
+  line-height: 36px;
+  font-weight: bold;
+}
+
+.home-signup-text {
+  font-size: 17px;
+  line-height: 27px;
+  color: var(--paragraph-color);
+}
+
+.home-signup-label {
+  color: var(--text-color);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 700;
+}
+
+.home-signup-controls {
+  display: flex;
+  gap: 12px;
+}
+
+.home-signup-input {
+  min-width: 0;
+  flex: 1;
+  padding: 13px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 9999px;
+  background-color: rgba(255, 255, 255, 0.05);
+  color: var(--text-color);
+  font-size: 16px;
+  line-height: 20px;
+}
+
+.home-signup-input:focus {
+  border-color: var(--accent-color);
+  outline: none;
+}
+
+.home-signup-button {
+  border: none;
+  border-radius: 9999px;
+  padding: 13px 18px;
+  background-color: var(--accent-color);
+  color: #1f2125;
+  font-size: 16px;
+  line-height: 20px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 /* Fight table styling */
 .fight-table-shell {
   width: 100%;
@@ -142,6 +213,10 @@
     text-align: left;
   }
 
+  .home-signup-shell {
+    grid-template-columns: 1fr;
+  }
+
   .fight-table-header {
     display: none;
   }
@@ -191,6 +266,24 @@
   .home-bio-text {
     font-size: 16px;
     line-height: 24px;
+  }
+
+  .home-signup-shell {
+    padding: 20px;
+  }
+
+  .home-signup-title {
+    font-size: 24px;
+    line-height: 30px;
+  }
+
+  .home-signup-text {
+    font-size: 15px;
+    line-height: 24px;
+  }
+
+  .home-signup-controls {
+    flex-direction: column;
   }
 
   .fight-table-row {

@@ -1,19 +1,14 @@
 from __future__ import annotations
 
-import tempfile
 from pathlib import Path
 from typing import Any
 
-import boto3
 import pandas as pd
-from botocore.exceptions import ClientError
 from fastapi import HTTPException
 from joblib import load
 
-from model_training.retrain_models import get_model_storage_settings, model_file_names, predict_fight
+from model_training.retrain_models import MODELS_PATH, model_file_names, predict_fight
 from upcoming_scraper.loaders import UPCOMING_CSV_TO_DB_COLUMNS
-
-MODEL_CACHE_DIR = Path(tempfile.gettempdir()) / "fight_result_predictor_models"
 
 UPCOMING_SOURCE_DB_COLUMNS = [db_column for _, db_column in UPCOMING_CSV_TO_DB_COLUMNS]
 DB_TO_MODEL_COLUMNS = {db_column: csv_column for csv_column, db_column in UPCOMING_CSV_TO_DB_COLUMNS}
@@ -71,34 +66,16 @@ def resolve_model_file_name(weight_class: str) -> tuple[str, str]:
     return "__global__", model_file_names["__global__"]
 
 
-def is_missing_s3_object(exc: ClientError) -> bool:
-    error_code = str(exc.response.get("Error", {}).get("Code", ""))
-    return error_code in {"404", "NoSuchKey", "NotFound"}
-
 ## Getting the model
-def download_model_from_s3(file_name: str) -> Path:
-    try:
-        bucket, prefix = get_model_storage_settings()
-    except ValueError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    MODEL_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    local_path = MODEL_CACHE_DIR / file_name
-
+def resolve_local_model_path(file_name: str) -> Path:
+    local_path = Path(MODELS_PATH) / file_name
     if local_path.exists():
         return local_path
 
-    s3 = boto3.client("s3")
-    s3_key = f"{prefix}/{file_name}"
-
-    try:
-        s3.download_file(bucket, s3_key, str(local_path))
-    except ClientError:
-        if local_path.exists():
-            local_path.unlink()
-        raise
-
-    return local_path
+    raise HTTPException(
+        status_code=500,
+        detail=f"Missing local model bundle: {local_path}",
+    )
 
 def get_prediction_bundle(weight_class: str) -> dict[str, Any]:
     if weight_class in MODEL_BUNDLE_CACHE:
@@ -107,22 +84,13 @@ def get_prediction_bundle(weight_class: str) -> dict[str, Any]:
     resolved_weight_class, file_name = resolve_model_file_name(weight_class)
 
     try:
-        local_path = download_model_from_s3(file_name)
-    except ClientError as exc:
-        if resolved_weight_class != "__global__" and is_missing_s3_object(exc):
+        local_path = resolve_local_model_path(file_name)
+    except HTTPException:
+        if resolved_weight_class != "__global__":
             file_name = model_file_names["__global__"]
-            try:
-                local_path = download_model_from_s3(file_name)
-            except ClientError as fallback_exc:
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to download global fallback model from S3: {fallback_exc}",
-                ) from fallback_exc
+            local_path = resolve_local_model_path(file_name)
         else:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to download model bundle from S3: {exc}",
-            ) from exc
+            raise
 
     try:
         bundle = load(local_path)

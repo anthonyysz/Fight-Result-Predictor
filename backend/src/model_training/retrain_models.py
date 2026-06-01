@@ -2,8 +2,6 @@
 
 from pathlib import Path
 import warnings
-import os
-import boto3
 
 import numpy as np
 import pandas as pd
@@ -23,12 +21,10 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from xgboost import XGBClassifier
 from joblib import dump
 import psycopg
-from shared.config import get_database_conninfo, get_setting
+from shared.config import get_database_conninfo
 
 # SECTION 1: ENVIRONMENT CONSTANTS
 
-MODEL_BUCKET_ENV = "MODEL_BUCKET" # Cloud
-MODEL_PREFIX_ENV = "MODEL_PREFIX"
 ROOT = Path(__file__).resolve().parents[3] #Local
 BACKEND_DIR = ROOT / "backend"
 MODELS_PATH = ROOT / "models"
@@ -960,41 +956,6 @@ def save_models_locally(deployment_registry: dict[str, dict]) -> list[dict]:
 
     return saved_model_rows
 
-#Cloud
-def get_model_storage_settings() -> tuple[str, str]:
-    bucket = get_setting(MODEL_BUCKET_ENV)
-    prefix = get_setting(MODEL_PREFIX_ENV, "models")
-
-    if bucket:
-        return bucket, (prefix or "models").strip("/")
-
-    raise ValueError(
-        f"Missing model storage configuration. Set {MODEL_BUCKET_ENV} and {MODEL_PREFIX_ENV}."
-    )
-
-def upload_models_to_s3(saved_model_rows: list[dict]) -> list[dict]:
-    bucket, prefix = get_model_storage_settings()
-    s3 = boto3.client("s3")
-
-    uploaded_rows: list[dict] = []
-    for row in saved_model_rows:
-        local_path = row["local_path"]
-        file_name = row["file_name"]
-        s3_key = f"{prefix}/{file_name}"
-
-        s3.upload_file(local_path, bucket, s3_key)
-
-        uploaded_rows.append(
-            {
-                **row,
-                "s3_bucket": bucket,
-                "s3_key": s3_key,
-                "s3_uri": f"s3://{bucket}/{s3_key}",
-            }
-        )
-
-    return uploaded_rows
-
 #Saving my final summary
 FINAL_SUMMARY_CSV_NAME = "final_summary.csv"
 
@@ -1003,19 +964,6 @@ def save_final_summary_locally(final_summary: pd.DataFrame) -> str:
     save_path = MODELS_PATH / FINAL_SUMMARY_CSV_NAME
     final_summary.to_csv(save_path, index=False)
     return str(save_path)
-
-def upload_file_to_s3(local_path: str, file_name: str) -> dict:
-    bucket, prefix = get_model_storage_settings()
-    s3 = boto3.client("s3")
-    s3_key = f"{prefix}/{file_name}"
-    s3.upload_file(local_path, bucket, s3_key)
-    return {
-        "local_path": local_path,
-        "file_name": file_name,
-        "s3_bucket": bucket,
-        "s3_key": s3_key,
-        "s3_uri": f"s3://{bucket}/{s3_key}",
-    }
 
 # SECTION 14: MAIN FUNCTION
 def main() -> None:
@@ -1042,13 +990,8 @@ def main() -> None:
     saved_model_rows = save_models_locally(deployment_registry)
     print(pd.DataFrame(saved_model_rows))
 
-    uploaded_model_rows = upload_models_to_s3(saved_model_rows)
-    uploaded_summary = upload_file_to_s3(final_summary_path, FINAL_SUMMARY_CSV_NAME)
-    print(pd.DataFrame(uploaded_model_rows))
-
     print("Retraining complete.")
     print(f"local_models_replaced: {len(saved_model_rows)}")
-    print(f"s3_models_replaced: {len(uploaded_model_rows)}")
 
 
 if __name__ == "__main__":

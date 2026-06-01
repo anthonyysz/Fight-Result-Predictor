@@ -67,6 +67,7 @@ Retrain models:
 ```powershell
 .venv\Scripts\python -m model_training.retrain_models
 ```
+Retraining saves model bundles locally under `models/`. The backend no longer downloads models from S3.
 
 Use historical scraper:
 ```powershell
@@ -102,7 +103,7 @@ Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8000/admin/fights/load' -C
 
 ## 7. Generate Predictions and complete finished fights
 
-Generate upcoming predictions from RDS using S3-hosted models
+Generate upcoming predictions from RDS using local model files
 ```powershell
 Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8000/admin/upcoming-predictions/generate'
 ```
@@ -111,3 +112,22 @@ Complete fights after they are done
 ```powershell
 Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8000/admin/upcoming-fights/finish'
 ```
+
+## 8. Fight week email automation
+
+Dry-run the Monday report:
+```powershell
+.\scripts\run-fight-week-report.ps1 -RunType early
+```
+
+Dry-run the Friday report:
+```powershell
+.\scripts\run-fight-week-report.ps1 -RunType late
+```
+
+Register the local Windows scheduled tasks:
+```powershell
+.\scripts\register-fight-week-report-tasks.ps1
+```
+
+The scheduler calls `POST /admin/automation/fight-week-report`, generates the latest CSV/HTML/text report under `backend/data/generated/mailings`, appends to `queue.json`, and schedules Mailchimp when `MAILCHIMP_DRY_RUN=false`.

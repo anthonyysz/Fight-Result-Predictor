@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import os
-from datetime import date
+from datetime import date, datetime
 from typing import Any, Literal
 
 import pandas as pd
 import psycopg
 from fastapi import Depends, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
+from automation.fight_week import run_fight_week_report
 from api.stats import render_average_return_chart, render_top_betting_events_chart
 from pydantic import BaseModel
 from shared.config import get_csv_setting, get_database_conninfo
@@ -203,6 +204,26 @@ class PredictionGenerateResponse(BaseModel):
     message: str
     row_count: int
     predicted_fights: list[str]
+
+
+class FightWeekReportRequest(BaseModel):
+    run_type: Literal["early", "late"]
+    scheduled_for: datetime | None = None
+
+
+class FightWeekReportResponse(BaseModel):
+    message: str
+    status: str
+    run_type: str
+    event_name: str | None = None
+    event_date: str | None = None
+    scheduled_for: str
+    generated_at: str
+    dry_run: bool | None = None
+    mailchimp_campaign_id: str | None = None
+    report_paths: dict[str, str] | None = None
+    queue_path: str | None = None
+
 
 class UpcomingPredictionRow(BaseModel):
     fight_date: date
@@ -589,4 +610,29 @@ def generate_upcoming_predictions_route(conn=Depends(get_db_connection)) -> Pred
         message="Upcoming predictions generated in public.upcoming_predictions",
         row_count=row_count,
         predicted_fights=predicted_fights,
+    )
+
+
+@app.post("/admin/automation/fight-week-report", response_model=FightWeekReportResponse)
+def run_fight_week_report_route(
+    payload: FightWeekReportRequest,
+    conn=Depends(get_db_connection),
+) -> FightWeekReportResponse:
+    summary = run_fight_week_report(
+        conn,
+        run_type=payload.run_type,
+        scheduled_for=payload.scheduled_for,
+    )
+    return FightWeekReportResponse(
+        message="Fight week report automation complete",
+        status=summary["status"],
+        run_type=summary["run_type"],
+        event_name=summary.get("event_name"),
+        event_date=summary.get("event_date"),
+        scheduled_for=summary["scheduled_for"],
+        generated_at=summary["generated_at"],
+        dry_run=summary.get("dry_run"),
+        mailchimp_campaign_id=summary.get("mailchimp_campaign_id"),
+        report_paths=summary.get("report_paths"),
+        queue_path=summary.get("queue_path"),
     )
