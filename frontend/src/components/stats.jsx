@@ -2,85 +2,73 @@ import React, { useState } from "react";
 import "../style/stats.css";
 
 const AVERAGE_RETURN_CHART_URL = "/generated/average-return-chart.png";
+const SUGGESTED_BET_CONFIDENCE_CHART_URL = "/generated/suggested-bet-confidence-chart.png";
 const TOP_EVENTS_CHART_URL = "/generated/top-betting-events-chart.png";
 
-const Stats = () => {
-  const [averageReturnLoading, setAverageReturnLoading] = useState(true);
-  const [averageReturnError, setAverageReturnError] = useState("");
-  const [topEventsLoading, setTopEventsLoading] = useState(true);
-  const [topEventsError, setTopEventsError] = useState("");
+const ChartPanel = ({ url, alt, loadingText, errorText, tableLayout = false }) => {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
+  return (
+    <div className={tableLayout ? "stats-chart-shell stats-table-chart-shell" : "stats-chart-shell"}>
+      {loading && !error ? <div className="stats-status-message">{loadingText}</div> : null}
+
+      {error ? <div className="stats-status-message">{error}</div> : null}
+
+      <img
+        className={loading || error ? "stats-chart-image is-hidden" : "stats-chart-image"}
+        src={url}
+        alt={alt}
+        onLoad={() => {
+          setLoading(false);
+          setError("");
+        }}
+        onError={() => {
+          setLoading(false);
+          setError(errorText);
+        }}
+      />
+    </div>
+  );
+};
+
+const Stats = () => {
   return (
     <div className="stats-screen w-full">
       <div className="stats-container mx-auto">
         <div className="stats-heading-row">
           <div>
             <p className="stats-greeting-text">Historical results</p>
-            <h1 className="stats-title-text">Model Performance</h1>
+            <h1 className="stats-title-text">Average Return</h1>
           </div>
 
           <p className="stats-bio-text">
-            Track how the model has performed so far across completed fight
-            cards and historical prediction results.
+            Average Model Return Rate per Fight Card<br />
+            (This will look more readable as more fights happen)
           </p>
         </div>
 
-        <div className="stats-chart-shell">
-          {averageReturnLoading && !averageReturnError ? (
-            <div className="stats-status-message">Loading return chart...</div>
-          ) : null}
+        <ChartPanel
+          url={AVERAGE_RETURN_CHART_URL}
+          alt="Line chart showing average model return by fight date"
+          loadingText="Loading return chart..."
+          errorText="Unable to load the return chart."
+        />
 
-          {averageReturnError ? (
-            <div className="stats-status-message">{averageReturnError}</div>
-          ) : null}
+        <ChartPanel
+          url={SUGGESTED_BET_CONFIDENCE_CHART_URL}
+          alt="Scatter plot showing suggested bet confidence by odds and bet result"
+          loadingText="Loading suggested bet confidence chart..."
+          errorText="Unable to load the suggested bet confidence chart."
+        />
 
-          <img
-            className={
-              averageReturnLoading || averageReturnError
-                ? "stats-chart-image is-hidden"
-                : "stats-chart-image"
-            }
-            src={AVERAGE_RETURN_CHART_URL}
-            alt="Line chart showing average model return by fight date"
-            onLoad={() => {
-              setAverageReturnLoading(false);
-              setAverageReturnError("");
-            }}
-            onError={() => {
-              setAverageReturnLoading(false);
-              setAverageReturnError("Unable to load the return chart.");
-            }}
-          />
-        </div>
-
-        <div className="stats-chart-shell stats-table-chart-shell">
-          {topEventsLoading && !topEventsError ? (
-            <div className="stats-status-message">Loading top betting events...</div>
-          ) : null}
-
-          {topEventsError ? (
-            <div className="stats-status-message">{topEventsError}</div>
-          ) : null}
-
-          <img
-            className={
-              topEventsLoading || topEventsError
-                ? "stats-chart-image is-hidden"
-                : "stats-chart-image"
-            }
-            src={TOP_EVENTS_CHART_URL}
-            alt="Table chart showing top five betting events by average return"
-            onLoad={() => {
-              setTopEventsLoading(false);
-              setTopEventsError("");
-            }}
-            onError={() => {
-              setTopEventsLoading(false);
-              setTopEventsError("Unable to load the top betting events chart.");
-            }}
-          />
-        </div>
-
+        <ChartPanel
+          url={TOP_EVENTS_CHART_URL}
+          alt="Table chart showing top five betting events by average return"
+          loadingText="Loading top betting events..."
+          errorText="Unable to load the top betting events chart."
+          tableLayout
+        />
       </div>
     </div>
   );

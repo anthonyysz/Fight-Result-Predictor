@@ -8,13 +8,14 @@ from zoneinfo import ZoneInfo
 
 import psycopg
 
-from api.stats import render_average_return_chart, render_top_betting_events_chart
+from api.stats import render_average_return_chart, render_suggested_bet_confidence_chart, render_top_betting_events_chart
 from shared.config import get_database_conninfo
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 FRONTEND_GENERATED_DIR = REPO_ROOT / "frontend" / "public" / "generated"
 AVERAGE_RETURN_CHART_PATH = FRONTEND_GENERATED_DIR / "average-return-chart.png"
+SUGGESTED_BET_CONFIDENCE_CHART_PATH = FRONTEND_GENERATED_DIR / "suggested-bet-confidence-chart.png"
 TOP_EVENTS_CHART_PATH = FRONTEND_GENERATED_DIR / "top-betting-events-chart.png"
 SITE_METADATA_PATH = FRONTEND_GENERATED_DIR / "site-metadata.json"
 LOCAL_TIMEZONE = ZoneInfo("America/New_York")
@@ -64,15 +65,18 @@ def publish_static_assets() -> dict[str, str]:
     conninfo = get_database_conninfo(required=True)
     with psycopg.connect(conninfo) as conn:
         average_return_chart = render_average_return_chart(conn)
+        suggested_bet_confidence_chart = render_suggested_bet_confidence_chart(conn)
         top_events_chart = render_top_betting_events_chart(conn)
         site_metadata = fetch_site_metadata(conn)
 
     write_bytes(AVERAGE_RETURN_CHART_PATH, average_return_chart)
+    write_bytes(SUGGESTED_BET_CONFIDENCE_CHART_PATH, suggested_bet_confidence_chart)
     write_bytes(TOP_EVENTS_CHART_PATH, top_events_chart)
     write_json(SITE_METADATA_PATH, site_metadata)
 
     return {
         "average_return_chart": os.fspath(AVERAGE_RETURN_CHART_PATH),
+        "suggested_bet_confidence_chart": os.fspath(SUGGESTED_BET_CONFIDENCE_CHART_PATH),
         "top_events_chart": os.fspath(TOP_EVENTS_CHART_PATH),
         "site_metadata": os.fspath(SITE_METADATA_PATH),
     }
@@ -81,6 +85,7 @@ def publish_static_assets() -> dict[str, str]:
 def main() -> None:
     outputs = publish_static_assets()
     print(f"average_return_chart: {outputs['average_return_chart']}")
+    print(f"suggested_bet_confidence_chart: {outputs['suggested_bet_confidence_chart']}")
     print(f"top_events_chart: {outputs['top_events_chart']}")
     print(f"site_metadata: {outputs['site_metadata']}")
 

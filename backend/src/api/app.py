@@ -9,7 +9,11 @@ import psycopg
 from fastapi import Depends, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from automation.fight_week import run_fight_week_report
-from api.stats import render_average_return_chart, render_top_betting_events_chart
+from api.stats import (
+    render_average_return_chart,
+    render_suggested_bet_confidence_chart,
+    render_top_betting_events_chart,
+)
 from pydantic import BaseModel
 from shared.config import get_csv_setting, get_database_conninfo
 from upcoming_scraper.predictions import generate_upcoming_predictions
@@ -472,6 +476,16 @@ def get_average_return_chart(conn=Depends(get_db_connection)) -> Response:
 @app.get("/stats/top-betting-events-chart")
 def get_top_betting_events_chart(conn=Depends(get_db_connection)) -> Response:
     chart_bytes = render_top_betting_events_chart(conn)
+    return Response(
+        content=chart_bytes,
+        media_type="image/png",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.get("/stats/suggested-bet-confidence-chart")
+def get_suggested_bet_confidence_chart(conn=Depends(get_db_connection)) -> Response:
+    chart_bytes = render_suggested_bet_confidence_chart(conn)
     return Response(
         content=chart_bytes,
         media_type="image/png",

@@ -9,6 +9,7 @@ matplotlib.use("Agg")
 
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mtick
 import pandas as pd
 import seaborn as sns
 from fastapi import HTTPException
@@ -77,9 +78,43 @@ def fetch_top_betting_events_frame(conn) -> pd.DataFrame:
     return frame
 
 
-def render_average_return_chart(conn: Any) -> bytes:
-    frame = fetch_average_return_frame(conn)
+def fetch_suggested_bet_confidence_frame(conn: Any) -> pd.DataFrame:
+    query = """
+        SELECT
+            red_fighter,
+            blue_fighter,
+            red_odds,
+            blue_odds,
+            model_picked_red_winner,
+            confidence,
+            model_pick,
+            model_return
+        FROM public.historical_predictions
+        WHERE model_pick != 'Pass'
+    """
 
+    with conn.cursor() as cur:
+        cur.execute(query)
+        rows = cur.fetchall()
+        columns = [column.name for column in cur.description]
+
+    if not rows:
+        raise HTTPException(
+            status_code=409,
+            detail="No historical suggested bets are available.",
+        )
+
+    frame = pd.DataFrame(rows, columns=columns)
+    frame["red_odds"] = pd.to_numeric(frame["red_odds"], errors="coerce")
+    frame["blue_odds"] = pd.to_numeric(frame["blue_odds"], errors="coerce")
+    frame["confidence"] = pd.to_numeric(frame["confidence"], errors="coerce")
+    frame["model_return"] = pd.to_numeric(frame["model_return"], errors="coerce")
+    if not pd.api.types.is_bool_dtype(frame["model_picked_red_winner"]):
+        frame["model_picked_red_winner"] = frame["model_picked_red_winner"].astype(str).str.lower().eq("true")
+    return frame
+
+
+def set_chart_theme() -> None:
     sns.set_theme(
         style="darkgrid",
         rc={
@@ -92,6 +127,21 @@ def render_average_return_chart(conn: Any) -> bytes:
             "ytick.color": "#e3e5e5",
         },
     )
+
+
+def save_figure_to_png(fig) -> bytes:
+    buffer = BytesIO()
+    fig.tight_layout()
+    fig.savefig(buffer, format="png", bbox_inches="tight", facecolor=fig.get_facecolor())
+    plt.close(fig)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+def render_average_return_chart(conn: Any) -> bytes:
+    frame = fetch_average_return_frame(conn)
+
+    set_chart_theme()
 
     fig, ax = plt.subplots(figsize=(11, 5.5), dpi=160)
 
@@ -117,12 +167,69 @@ def render_average_return_chart(conn: Any) -> bytes:
     for spine in ax.spines.values():
         spine.set_color("#4e545c")
 
-    buffer = BytesIO()
-    fig.tight_layout()
-    fig.savefig(buffer, format="png", bbox_inches="tight", facecolor=fig.get_facecolor())
-    plt.close(fig)
-    buffer.seek(0)
-    return buffer.getvalue()
+    return save_figure_to_png(fig)
+
+
+def render_suggested_bet_confidence_chart(conn: Any) -> bytes:
+    frame = fetch_suggested_bet_confidence_frame(conn)
+
+    red_bet_mask = frame["model_pick"].eq(frame["red_fighter"])
+    blue_bet_mask = frame["model_pick"].eq(frame["blue_fighter"])
+    suggested_bet_mask = red_bet_mask | blue_bet_mask
+
+    frame = frame.loc[suggested_bet_mask].copy()
+    if frame.empty:
+        raise HTTPException(status_code=409, detail="No historical suggested bets are available.")
+
+    frame["suggested_bet_odds"] = frame["red_odds"].where(red_bet_mask.loc[frame.index], frame["blue_odds"])
+    picked_suggested_side = frame["model_picked_red_winner"].where(
+        red_bet_mask.loc[frame.index],
+        ~frame["model_picked_red_winner"],
+    )
+    frame["suggested_bet_confidence"] = frame["confidence"].where(picked_suggested_side, 1 - frame["confidence"])
+    frame["bet_result"] = frame["model_return"].gt(1).map({True: "Correct Bet", False: "Incorrect Bet"})
+    frame = frame.dropna(subset=["suggested_bet_odds", "suggested_bet_confidence", "bet_result"])
+    frame = frame.sort_values("suggested_bet_odds")
+
+    set_chart_theme()
+    grid = sns.relplot(
+        data=frame,
+        x="suggested_bet_odds",
+        y="suggested_bet_confidence",
+        hue="bet_result",
+        hue_order=["Correct Bet", "Incorrect Bet"],
+        palette={"Correct Bet": "#5fd38d", "Incorrect Bet": "#f05f5f"},
+        kind="scatter",
+        height=5.5,
+        aspect=2,
+        s=90,
+        edgecolor="#222529",
+        linewidth=0.8,
+    )
+
+    fig = grid.figure
+    fig.set_dpi(160)
+    fig.patch.set_facecolor("#34393f")
+    ax = grid.ax
+    ax.set_facecolor("#34393f")
+    ax.axvline(0, color="#e7e9ec", linestyle="--", linewidth=1.2, alpha=0.75)
+    ax.axhline(0.5, color="#e7e9ec", linestyle=":", linewidth=1.4, alpha=0.85)
+    ax.set_title("Suggested Bet Confidence by Odds with Results", fontsize=18, fontweight="bold", pad=16)
+    ax.set_xlabel("<<--Favorites--  |  Suggested Bet Odds  |  >>--Underdogs-->>", labelpad=10)
+    ax.set_ylabel("Confidence in Suggested Bet", labelpad=10)
+    ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0))
+    ax.set_ylim(0, 1)
+    ax.margins(x=0.08, y=0.12)
+
+    for spine in ax.spines.values():
+        spine.set_color("#4e545c")
+
+    if grid.legend:
+        grid.legend.set_title("Bet Result")
+        grid.legend.get_frame().set_facecolor("#34393f")
+        grid.legend.get_frame().set_edgecolor("#4e545c")
+
+    return save_figure_to_png(fig)
 
 
 def render_top_betting_events_chart(conn: Any) -> bytes:
@@ -168,9 +275,4 @@ def render_top_betting_events_chart(conn: Any) -> bytes:
             cell.set_facecolor("#34393f" if row_idx % 2 else "#3b4047")
             cell.set_text_props(color="#e7e9ec")
 
-    buffer = BytesIO()
-    fig.tight_layout()
-    fig.savefig(buffer, format="png", bbox_inches="tight", facecolor=fig.get_facecolor())
-    plt.close(fig)
-    buffer.seek(0)
-    return buffer.getvalue()
+    return save_figure_to_png(fig)
