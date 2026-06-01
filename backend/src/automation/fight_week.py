@@ -202,304 +202,113 @@ def format_expected_value(value: Any) -> str:
 
 
 def build_report_html(event_name: str, event_date: date, run_type: ReportRunType, rows: list[dict[str, Any]]) -> str:
-    row_html = "\n".join(
-        f"""
-        <div class="fight-table-row">
-          <div class="fight-table-item fighter-item">
-            <div class="fighter-row">
-              <span class="corner-label red-corner">Red Corner</span>
-              <span class="fighter-name">{escape(row['red_fighter'])}</span>
-            </div>
-            <div class="fighter-row">
-              <span class="corner-label blue-corner">Blue Corner</span>
-              <span class="fighter-name">{escape(row['blue_fighter'])}</span>
-            </div>
-          </div>
+    font = "Raleway, Arial, sans-serif"
+    bg_color = "#2c2f33"
+    header_color = "#222529"
+    panel_color = "#34393f"
+    panel_color_2 = "#3b4047"
+    text_color = "#e7e9ec"
+    paragraph_color = "#e3e5e5"
+    accent_color = "#f08a24"
+    red_color = "#ec5a5a"
+    blue_color = "#6aa8ff"
+    border_color = "#4e545c"
 
-          <div class="fight-table-item odds-item">
-            <span>{escape(format_odds(row['red_odds']))}</span>
-            <span>{escape(format_odds(row['blue_odds']))}</span>
-          </div>
+    row_html_parts: list[str] = []
+    for index, row in enumerate(rows):
+        row_bg = panel_color if index % 2 == 0 else panel_color_2
+        row_html_parts.append(
+            f"""
+            <tr>
+              <td style="padding:18px 20px;background-color:{row_bg};border-top:1px solid #42474e;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+                  <tr>
+                    <td width="250" style="width:250px;padding:0 16px 0 0;vertical-align:middle;">
+                      <div style="margin:0 0 10px;">
+                        <div style="font-family:{font};font-size:12px;line-height:16px;text-transform:uppercase;letter-spacing:0.08em;color:{red_color};">Red Corner</div>
+                        <div style="font-family:{font};font-size:16px;line-height:24px;color:{text_color};">{escape(row['red_fighter'])}</div>
+                      </div>
+                      <div>
+                        <div style="font-family:{font};font-size:12px;line-height:16px;text-transform:uppercase;letter-spacing:0.08em;color:{blue_color};">Blue Corner</div>
+                        <div style="font-family:{font};font-size:16px;line-height:24px;color:{text_color};">{escape(row['blue_fighter'])}</div>
+                      </div>
+                    </td>
+                    <td width="120" style="width:120px;padding:0 16px 0 0;vertical-align:middle;font-family:{font};font-size:16px;line-height:24px;color:{paragraph_color};">
+                      {escape(format_odds(row['red_odds']))}<br>{escape(format_odds(row['blue_odds']))}
+                    </td>
+                    <td width="130" style="width:130px;padding:0 16px 0 0;vertical-align:middle;font-family:{font};font-size:16px;line-height:24px;color:{paragraph_color};">
+                      {escape(row['weight_class'])}
+                    </td>
+                    <td width="130" style="width:130px;padding:0 16px 0 0;vertical-align:middle;font-family:{font};font-size:16px;line-height:24px;color:{paragraph_color};">
+                      {escape(row['predicted_winner'])}
+                    </td>
+                    <td width="120" style="width:120px;padding:0 16px 0 0;vertical-align:middle;font-family:{font};font-size:16px;line-height:24px;color:{paragraph_color};">
+                      {escape(format_confidence(row['confidence']))}
+                    </td>
+                    <td width="110" style="width:110px;padding:0;vertical-align:middle;font-family:{font};font-size:16px;line-height:24px;color:{paragraph_color};">
+                      {escape(row['recommended_bet'])}
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            """
+        )
 
-          <div class="fight-table-item data-item" data-label="Weight">
-            {escape(row['weight_class'])}
-          </div>
-
-          <div class="fight-table-item data-item" data-label="Winner?">
-            {escape(row['predicted_winner'])}
-          </div>
-
-          <div class="fight-table-item data-item" data-label="Confidence">
-            {escape(format_confidence(row['confidence']))}
-          </div>
-
-          <div class="fight-table-item data-item" data-label="Pick/Pass">
-            {escape(row['recommended_bet'])}
-          </div>
-        </div>
-        """
-        for row in rows
-    )
-
+    row_html = "\n".join(row_html_parts)
     return f"""<!doctype html>
 <html>
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{escape(event_name)}</title>
-    <style>
-      @import url("https://fonts.googleapis.com/css2?family=Raleway:wght@200;400;500;600;700&display=swap");
-
-      :root {{
-        --bg-color: #2c2f33;
-        --header-color: #222529;
-        --panel-color: #34393f;
-        --panel-color-2: #3b4047;
-        --border-color: #4e545c;
-        --text-color: #e7e9ec;
-        --paragraph-color: #e3e5e5;
-        --accent-color: #f08a24;
-        --red-color: #ec5a5a;
-        --blue-color: #6aa8ff;
-        --shadow-color: 0 12px 24px rgba(0, 0, 0, 0.22);
-      }}
-
-      * {{
-        box-sizing: border-box;
-      }}
-
-      body {{
-        margin: 0;
-        background-color: var(--bg-color);
-        color: var(--text-color);
-        font-family: Raleway, Arial, sans-serif;
-      }}
-
-      .home-screen {{
-        width: 100%;
-        min-height: 100vh;
-        padding-top: 112px;
-        padding-bottom: 32px;
-      }}
-
-      .home-container {{
-        max-width: 1100px;
-        margin-left: auto;
-        margin-right: auto;
-        padding-left: 24px;
-        padding-right: 24px;
-        display: flex;
-        flex-direction: column;
-        gap: 24px;
-      }}
-
-      .home-heading-row {{
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-end;
-        gap: 24px;
-      }}
-
-      .home-greeting-text {{
-        font-size: 14px;
-        line-height: 20px;
-        letter-spacing: 0.16em;
-        text-transform: uppercase;
-        color: var(--accent-color);
-        margin: 0 0 8px;
-      }}
-
-      .home-title-text {{
-        margin: 0;
-        font-size: 34px;
-        line-height: 40px;
-        font-weight: bold;
-      }}
-
-      .home-bio-text {{
-        margin: 0;
-        font-size: 18px;
-        line-height: 28px;
-        color: var(--paragraph-color);
-        max-width: 460px;
-        text-align: right;
-      }}
-
-      .fight-table-shell {{
-        width: 100%;
-        border-radius: 20px;
-        overflow: hidden;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        box-shadow: var(--shadow-color);
-      }}
-
-      .fight-table-header {{
-        display: grid;
-        grid-template-columns: minmax(250px, 2fr) minmax(120px, 0.9fr) minmax(130px, 1fr) minmax(130px, 1fr) minmax(120px, 0.9fr) minmax(110px, 0.9fr);
-        gap: 16px;
-        padding: 16px 20px;
-        background-color: var(--header-color);
-        font-size: 14px;
-        line-height: 20px;
-        font-weight: bold;
-        text-transform: uppercase;
-      }}
-
-      .fight-table-body {{
-        display: flex;
-        flex-direction: column;
-      }}
-
-      .fight-table-row {{
-        display: grid;
-        grid-template-columns: minmax(250px, 2fr) minmax(120px, 0.9fr) minmax(130px, 1fr) minmax(130px, 1fr) minmax(120px, 0.9fr) minmax(110px, 0.9fr);
-        gap: 16px;
-        padding: 18px 20px;
-        align-items: center;
-        background-color: var(--panel-color);
-        border-top: 1px solid rgba(255, 255, 255, 0.05);
-      }}
-
-      .fight-table-row:nth-child(even) {{
-        background-color: var(--panel-color-2);
-      }}
-
-      .fight-table-item {{
-        min-width: 0;
-      }}
-
-      .fighter-item {{
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-      }}
-
-      .fighter-row,
-      .odds-item {{
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-      }}
-
-      .corner-label {{
-        font-size: 12px;
-        line-height: 16px;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-      }}
-
-      .red-corner {{
-        color: var(--red-color);
-      }}
-
-      .blue-corner {{
-        color: var(--blue-color);
-      }}
-
-      .fighter-name {{
-        font-size: 16px;
-        line-height: 24px;
-      }}
-
-      .odds-item,
-      .data-item {{
-        color: var(--paragraph-color);
-      }}
-
-      @media (max-width: 900px) {{
-        .home-heading-row {{
-          flex-direction: column;
-          align-items: flex-start;
-        }}
-
-        .home-bio-text {{
-          max-width: none;
-          text-align: left;
-        }}
-
-        .fight-table-header {{
-          display: none;
-        }}
-
-        .fight-table-row {{
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-        }}
-
-        .fight-table-item::before {{
-          display: block;
-          margin-bottom: 6px;
-          font-size: 12px;
-          line-height: 16px;
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
-          color: var(--text-color);
-        }}
-
-        .fighter-item::before {{
-          content: "Fighter";
-        }}
-
-        .odds-item::before {{
-          content: "Odds";
-        }}
-
-        .data-item::before {{
-          content: attr(data-label);
-        }}
-      }}
-
-      @media (max-width: 640px) {{
-        .home-screen {{
-          padding-top: 130px;
-        }}
-
-        .home-container {{
-          padding-left: 16px;
-          padding-right: 16px;
-        }}
-
-        .home-title-text {{
-          font-size: 28px;
-          line-height: 34px;
-        }}
-
-        .home-bio-text {{
-          font-size: 16px;
-          line-height: 24px;
-        }}
-
-        .fight-table-row {{
-          grid-template-columns: 1fr;
-        }}
-      }}
-    </style>
   </head>
-  <body>
-    <div class="home-screen">
-      <div class="home-container">
-        <div class="home-heading-row">
-          <div>
-            <p class="home-greeting-text">Upcoming predictions</p>
-            <h1 class="home-title-text">{escape(event_name or "Upcoming UFC Event")}</h1>
-          </div>
+  <body style="margin:0;padding:0;background-color:{bg_color};color:{text_color};">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;background-color:{bg_color};">
+      <tr>
+        <td align="center" style="padding:112px 24px 32px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;max-width:1100px;border-collapse:collapse;">
+            <tr>
+              <td style="padding:0 0 24px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
+                  <tr>
+                    <td style="vertical-align:bottom;padding:0 24px 0 0;">
+                      <div style="font-family:{font};font-size:14px;line-height:20px;letter-spacing:0.16em;text-transform:uppercase;color:{accent_color};margin:0 0 8px;">Upcoming predictions</div>
+                      <div style="font-family:{font};font-size:34px;line-height:40px;font-weight:700;color:{text_color};margin:0;">{escape(event_name or "Upcoming UFC Event")}</div>
+                    </td>
+                    <td width="460" style="width:460px;vertical-align:bottom;text-align:right;font-family:{font};font-size:18px;line-height:28px;color:{paragraph_color};">
+                      Odds will, of course, change throughout fight week
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
 
-          <p class="home-bio-text">Odds will, of course, change throughout fight week</p>
-        </div>
-
-        <div class="fight-table-shell">
-          <div class="fight-table-header">
-            <div class="fight-table-header-item">Fighter</div>
-            <div class="fight-table-header-item">Odds</div>
-            <div class="fight-table-header-item">Weight</div>
-            <div class="fight-table-header-item">Winner?</div>
-            <div class="fight-table-header-item">Confidence</div>
-            <div class="fight-table-header-item">Pick/Pass</div>
-          </div>
-
-          <div class="fight-table-body">{row_html}</div>
-        </div>
-      </div>
-    </div>
+            <tr>
+              <td style="border:1px solid {border_color};border-radius:20px;overflow:hidden;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;border-radius:20px;overflow:hidden;">
+                  <tr>
+                    <td style="background-color:{header_color};padding:16px 20px;">
+                      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+                        <tr>
+                          <td width="250" style="width:250px;padding:0 16px 0 0;font-family:{font};font-size:14px;line-height:20px;font-weight:700;text-transform:uppercase;color:{text_color};">Fighter</td>
+                          <td width="120" style="width:120px;padding:0 16px 0 0;font-family:{font};font-size:14px;line-height:20px;font-weight:700;text-transform:uppercase;color:{text_color};">Odds</td>
+                          <td width="130" style="width:130px;padding:0 16px 0 0;font-family:{font};font-size:14px;line-height:20px;font-weight:700;text-transform:uppercase;color:{text_color};">Weight</td>
+                          <td width="130" style="width:130px;padding:0 16px 0 0;font-family:{font};font-size:14px;line-height:20px;font-weight:700;text-transform:uppercase;color:{text_color};">Winner?</td>
+                          <td width="120" style="width:120px;padding:0 16px 0 0;font-family:{font};font-size:14px;line-height:20px;font-weight:700;text-transform:uppercase;color:{text_color};">Confidence</td>
+                          <td width="110" style="width:110px;padding:0;font-family:{font};font-size:14px;line-height:20px;font-weight:700;text-transform:uppercase;color:{text_color};">Pick/Pass</td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                  {row_html}
+                </table>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
   </body>
 </html>
 """

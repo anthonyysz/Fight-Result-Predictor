@@ -3,6 +3,24 @@ import "../style/home.css";
 
 const MAILCHIMP_SIGNUP_ACTION = (process.env.REACT_APP_MAILCHIMP_SIGNUP_ACTION || "").trim();
 
+const buildMailchimpHoneypotName = (actionUrl) => {
+  try {
+    const params = new URL(actionUrl).searchParams;
+    const userId = params.get("u");
+    const audienceId = params.get("id");
+
+    if (!userId || !audienceId) {
+      return "";
+    }
+
+    return `b_${userId}_${audienceId}`;
+  } catch {
+    return "";
+  }
+};
+
+const MAILCHIMP_HONEYPOT_NAME = buildMailchimpHoneypotName(MAILCHIMP_SIGNUP_ACTION);
+
 const Home = () => {
   const signupIsReady = MAILCHIMP_SIGNUP_ACTION.length > 0;
 
@@ -31,6 +49,9 @@ const Home = () => {
               The report includes every modeled matchup, odds, predicted winner,
               confidence, expected value, and pick/pass recommendation.
             </p>
+            {signupIsReady ? (
+              <p className="home-signup-status">Signups are open now.</p>
+            ) : null}
           </div>
 
           {signupIsReady ? (
@@ -57,6 +78,18 @@ const Home = () => {
                   Subscribe
                 </button>
               </div>
+              {MAILCHIMP_HONEYPOT_NAME ? (
+                <div className="home-signup-hidden" aria-hidden="true">
+                  <input
+                    name={MAILCHIMP_HONEYPOT_NAME}
+                    tabIndex="-1"
+                    defaultValue=""
+                  />
+                </div>
+              ) : null}
+              <p className="home-signup-note">
+                You will be taken to Mailchimp to confirm your subscription.
+              </p>
             </form>
           ) : (
             <div className="home-signup-form">
