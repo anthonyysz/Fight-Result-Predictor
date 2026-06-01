@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import os
+from datetime import date
 from typing import Any
 
 import pandas as pd
 from fastapi import HTTPException
 
 from historical_scraper.core.csv_manager import RECENT_COLUMNS
-from historical_scraper.core.utils import american_profit_multiple
-from historical_scraper.sources.ufcstats_scraper import parse_fight_detail
+from historical_scraper.core.utils import american_profit_multiple, clean_text
+from historical_scraper.sources.ufcstats_scraper import get_soup, list_completed_events, parse_fight_detail
 from upcoming_scraper.core.csv_manager import UPCOMING_FIGHTS_CSV_PATH
 from upcoming_scraper.sources.ufcstats_scraper import create_session
 
@@ -296,6 +297,96 @@ def build_upcoming_metadata_key(row: dict[str, Any]) -> tuple[Any, Any, Any]:
     return (row["fight_date"], row["red_fighter"], row["blue_fighter"])
 
 
+def normalize_fighter_name(name: str) -> str:
+    return clean_text(name).casefold()
+
+
+def build_completed_matchup_key(red_fighter: str, blue_fighter: str) -> tuple[str, str]:
+    return (normalize_fighter_name(red_fighter), normalize_fighter_name(blue_fighter))
+
+
+def parse_completed_event_row(fight_row) -> dict[str, Any] | None:
+    cells = fight_row.select("td")
+    if len(cells) < 10:
+        return None
+
+    fighter_links = cells[1].select("a[href*='fighter-details']")
+    fighters = [clean_text(link.get_text(" ", strip=True)) for link in fighter_links[:2]]
+    if len(fighters) != 2 or not fighters[0] or not fighters[1]:
+        return None
+
+    flag_texts = [clean_text(flag.get_text(" ", strip=True)).upper() for flag in cells[0].select("a.b-flag")]
+    red_status = ""
+    blue_status = ""
+    if len(flag_texts) >= 2:
+        red_status = flag_texts[0]
+        blue_status = flag_texts[1]
+    elif len(flag_texts) == 1:
+        if flag_texts[0] == "WIN":
+            red_status = "W"
+            blue_status = "L"
+        elif flag_texts[0] == "LOSS":
+            red_status = "L"
+            blue_status = "W"
+        elif flag_texts[0] == "NC":
+            red_status = "NC"
+            blue_status = "NC"
+        elif flag_texts[0] == "DRAW":
+            red_status = "D"
+            blue_status = "D"
+
+    method_parts = [clean_text(part.get_text(" ", strip=True)) for part in cells[7].select("p.b-fight-details__table-text")]
+    method = method_parts[0] if method_parts else ""
+    finish_details = method_parts[1] if len(method_parts) > 1 else ""
+    weight_class = clean_text(cells[6].get_text(" ", strip=True))
+    round_text = clean_text(cells[8].get_text(" ", strip=True))
+    time_text = clean_text(cells[9].get_text(" ", strip=True))
+
+    return {
+        "matchup_key": build_completed_matchup_key(fighters[0], fighters[1]),
+        "red_status": red_status,
+        "blue_status": blue_status,
+        "red_winner": red_status == "W",
+        "method": method,
+        "finish_details": finish_details,
+        "finish_round": int(round_text) if round_text.isdigit() else 0,
+        "finish_time": time_text,
+        "number_of_rounds": None,
+        "title_bout": "belt.png" in str(cells[6]),
+        "weight_class": weight_class,
+    }
+
+
+def build_completed_event_result_lookup(session, fight_date_value, event_name: str) -> dict[tuple[str, str], dict[str, Any]]:
+    completed_events = list_completed_events(session, fight_date_value)
+    exact_match = next(
+        (
+            event
+            for event in completed_events
+            if event["fight_date"] == fight_date_value and clean_text(event["event_name"]) == clean_text(event_name)
+        ),
+        None,
+    )
+    target_event = exact_match
+
+    if target_event is None:
+        same_day_events = [event for event in completed_events if event["fight_date"] == fight_date_value]
+        if len(same_day_events) == 1:
+            target_event = same_day_events[0]
+
+    if target_event is None:
+        return {}
+
+    event_soup = get_soup(session, target_event["event_url"])
+    lookup: dict[tuple[str, str], dict[str, Any]] = {}
+    for fight_row in event_soup.select("tr.b-fight-details__table-row.js-fight-details-click"):
+        parsed_row = parse_completed_event_row(fight_row)
+        if parsed_row is None:
+            continue
+        lookup[parsed_row["matchup_key"]] = parsed_row
+    return lookup
+
+
 def fight_is_pending(fight_detail: dict[str, Any]) -> bool:
     red_status = fight_detail.get("red_status", "")
     blue_status = fight_detail.get("blue_status", "")
@@ -372,6 +463,7 @@ def build_historical_prediction_record(row: dict[str, Any], red_winner: bool) ->
 def finish_upcoming_fights(conn) -> dict[str, Any]:
     merged_df = fetch_upcoming_fights_with_metadata(conn)
     session = create_session()
+    completed_event_cache: dict[tuple[Any, str], dict[tuple[str, str], dict[str, Any]]] = {}
 
     all_fights_records: list[tuple[Any, ...]] = []
     historical_prediction_records: list[tuple[Any, ...]] = []
@@ -383,36 +475,61 @@ def finish_upcoming_fights(conn) -> dict[str, Any]:
     discarded_fights: list[str] = []
     pending_fights: list[str] = []
 
-    for row in merged_df.itertuples(index=False):
-        row_dict = row._asdict()
-        fight_detail = parse_fight_detail(session, row_dict["fight_url"])
-        identifier = build_fight_identifier(row_dict)
+    try:
+        for row in merged_df.itertuples(index=False):
+            row_dict = row._asdict()
+            fight_detail = parse_fight_detail(session, row_dict["fight_url"])
+            identifier = build_fight_identifier(row_dict)
 
-        if fight_is_pending(fight_detail):
-            pending_fights.append(identifier)
-            continue
+            if fight_is_pending(fight_detail):
+                event_cache_key = (row_dict["fight_date"], clean_text(row_dict["event_name"]))
+                completed_lookup = completed_event_cache.get(event_cache_key)
+                if completed_lookup is None:
+                    completed_lookup = build_completed_event_result_lookup(
+                        session,
+                        row_dict["fight_date"],
+                        row_dict["event_name"],
+                    )
+                    completed_event_cache[event_cache_key] = completed_lookup
 
-        if fight_has_supported_winner(fight_detail):
-            red_winner = fight_detail.get("red_status", "") == "W"
-            all_fights_records.append(build_all_fights_record(row_dict, red_winner))
+                fallback_detail = completed_lookup.get(
+                    build_completed_matchup_key(row_dict["red_fighter"], row_dict["blue_fighter"])
+                )
+                if fallback_detail is not None:
+                    fight_detail = fallback_detail
+                elif row_dict["fight_date"] < date.today():
+                    discarded_fights.append(f"{identifier} (not found on completed card)")
+                    upcoming_fight_deletes.append(build_upcoming_fight_key(row_dict))
+                    upcoming_metadata_deletes.append(build_upcoming_metadata_key(row_dict))
+                    upcoming_prediction_deletes.append(build_upcoming_fight_key(row_dict))
+                    continue
+                else:
+                    pending_fights.append(identifier)
+                    continue
 
-            if has_prediction_row(row_dict):
-                historical_prediction_records.append(build_historical_prediction_record(row_dict, red_winner))
+            if fight_has_supported_winner(fight_detail):
+                red_winner = fight_detail.get("red_status", "") == "W"
+                all_fights_records.append(build_all_fights_record(row_dict, red_winner))
+
+                if has_prediction_row(row_dict):
+                    historical_prediction_records.append(build_historical_prediction_record(row_dict, red_winner))
+
+                upcoming_fight_deletes.append(build_upcoming_fight_key(row_dict))
+                upcoming_metadata_deletes.append(build_upcoming_metadata_key(row_dict))
+                upcoming_prediction_deletes.append(build_upcoming_fight_key(row_dict))
+                moved_fights.append(identifier)
+                continue
+
+            red_status = fight_detail.get("red_status", "") or "unknown"
+            blue_status = fight_detail.get("blue_status", "") or "unknown"
+            method = fight_detail.get("method", "") or "no method"
+            discarded_fights.append(f"{identifier} ({red_status} / {blue_status} / {method})")
 
             upcoming_fight_deletes.append(build_upcoming_fight_key(row_dict))
             upcoming_metadata_deletes.append(build_upcoming_metadata_key(row_dict))
             upcoming_prediction_deletes.append(build_upcoming_fight_key(row_dict))
-            moved_fights.append(identifier)
-            continue
-
-        red_status = fight_detail.get("red_status", "") or "unknown"
-        blue_status = fight_detail.get("blue_status", "") or "unknown"
-        method = fight_detail.get("method", "") or "no method"
-        discarded_fights.append(f"{identifier} ({red_status} / {blue_status} / {method})")
-
-        upcoming_fight_deletes.append(build_upcoming_fight_key(row_dict))
-        upcoming_metadata_deletes.append(build_upcoming_metadata_key(row_dict))
-        upcoming_prediction_deletes.append(build_upcoming_fight_key(row_dict))
+    finally:
+        session.close()
 
     with conn.cursor() as cur:
         if all_fights_records:

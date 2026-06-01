@@ -6,6 +6,7 @@ from typing import Any
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
+from playwright.sync_api import Browser, BrowserContext, Playwright, sync_playwright
 
 from historical_scraper.core.utils import (
     age_on_fight_date,
@@ -28,18 +29,70 @@ DEFAULT_UA = (
     "AppleWebKit/537.36 (KHTML, like Gecko) "
     "Chrome/135.0.0.0 Safari/537.36"
 )
+BROWSER_WAIT_MS = 5000
+
+
+def response_needs_browser(html: str) -> bool:
+    lowered = html.lower()
+    return (
+        "checking your browser" in lowered
+        or "this site requires javascript" in lowered
+        or "<title>loading" in lowered
+    )
+
+
+class UFCStatsSession:
+    def __init__(self) -> None:
+        self._requests = requests.Session()
+        self._requests.headers.update({"User-Agent": DEFAULT_UA})
+        self._playwright: Playwright | None = None
+        self._browser: Browser | None = None
+        self._context: BrowserContext | None = None
+
+    def _ensure_browser(self) -> BrowserContext:
+        if self._context is not None:
+            return self._context
+
+        self._playwright = sync_playwright().start()
+        self._browser = self._playwright.chromium.launch(headless=True)
+        self._context = self._browser.new_context(user_agent=DEFAULT_UA)
+        return self._context
+
+    def get_html(self, url: str, timeout: int = DEFAULT_TIMEOUT) -> str:
+        response = self._requests.get(url, timeout=timeout)
+        response.raise_for_status()
+
+        if not response_needs_browser(response.text):
+            return response.text
+
+        context = self._ensure_browser()
+        page = context.new_page()
+        try:
+            page.goto(url, wait_until="domcontentloaded", timeout=timeout * 1000)
+            page.wait_for_timeout(BROWSER_WAIT_MS)
+            return page.content()
+        finally:
+            page.close()
+
+    def close(self) -> None:
+        if self._context is not None:
+            self._context.close()
+            self._context = None
+        if self._browser is not None:
+            self._browser.close()
+            self._browser = None
+        if self._playwright is not None:
+            self._playwright.stop()
+            self._playwright = None
+        self._requests.close()
 
 # Starting a session
-def create_session() -> requests.Session:
-    session = requests.Session()
-    session.headers.update({"User-Agent": DEFAULT_UA})
-    return session
+def create_session() -> UFCStatsSession:
+    return UFCStatsSession()
 
 # Getting the text from a page
-def get_soup(session: requests.Session, url: str) -> BeautifulSoup:
-    response = session.get(url, timeout=DEFAULT_TIMEOUT)
-    response.raise_for_status()
-    return BeautifulSoup(response.text, "html.parser")
+def get_soup(session: UFCStatsSession, url: str) -> BeautifulSoup:
+    return BeautifulSoup(session.get_html(url, timeout=DEFAULT_TIMEOUT), "html.parser")
 
 # Getting all of our completed events
 def list_completed_events(session: requests.Session, start_date) -> list[dict[str, Any]]:
@@ -71,28 +124,31 @@ def list_completed_events(session: requests.Session, start_date) -> list[dict[st
 # Getting the basic info from our rows to help with getting stats
 def initialize_recent_rows(start_date) -> list[dict[str, Any]]:
     session = create_session()
-    rows: list[dict[str, Any]] = []
-    for event in list_completed_events(session, start_date):
-        event_soup = get_soup(session, event["event_url"])
-        for fight_row in event_soup.select("tr.b-fight-details__table-row.js-fight-details-click"):
-            fight_url = fight_row.get("data-link")
-            if not fight_url:
-                continue
-            corners = parse_fight_corners(session, fight_url)
-            rows.append(
-                {
-                    "fight_date": event["fight_date"],
-                    "event_name": event["event_name"],
-                    "location": event["location"],
-                    "event_url": event["event_url"],
-                    "fight_url": fight_url,
-                    "red_fighter": corners["red_fighter"],
-                    "blue_fighter": corners["blue_fighter"],
-                    "red_fighter_url": corners["red_fighter_url"],
-                    "blue_fighter_url": corners["blue_fighter_url"],
-                }
-            )
-    return rows
+    try:
+        rows: list[dict[str, Any]] = []
+        for event in list_completed_events(session, start_date):
+            event_soup = get_soup(session, event["event_url"])
+            for fight_row in event_soup.select("tr.b-fight-details__table-row.js-fight-details-click"):
+                fight_url = fight_row.get("data-link")
+                if not fight_url:
+                    continue
+                corners = parse_fight_corners(session, fight_url)
+                rows.append(
+                    {
+                        "fight_date": event["fight_date"],
+                        "event_name": event["event_name"],
+                        "location": event["location"],
+                        "event_url": event["event_url"],
+                        "fight_url": fight_url,
+                        "red_fighter": corners["red_fighter"],
+                        "blue_fighter": corners["blue_fighter"],
+                        "red_fighter_url": corners["red_fighter_url"],
+                        "blue_fighter_url": corners["blue_fighter_url"],
+                    }
+                )
+        return rows
+    finally:
+        session.close()
 
 # Finding who is in which corner
 def parse_fight_corners(session: requests.Session, fight_url: str) -> dict[str, str]:
@@ -192,68 +248,71 @@ def apply_ufcstats_data(df: pd.DataFrame) -> pd.DataFrame:
         return df.copy()
 
     session = create_session()
-    fighter_profile = build_fighter_profile_lookup(session)
+    try:
+        fighter_profile = build_fighter_profile_lookup(session)
 
-    # Adding this fight data to the dataframe
-    enriched_rows: list[dict[str, Any]] = []
-    for _, row in df.iterrows():
-        row_dict = row.to_dict()
-        fight_date = pd.to_datetime(row_dict["fight_date"]).date()
-        fight_data = parse_fight_detail(session, row_dict["fight_url"])
+        # Adding this fight data to the dataframe
+        enriched_rows: list[dict[str, Any]] = []
+        for _, row in df.iterrows():
+            row_dict = row.to_dict()
+            fight_date = pd.to_datetime(row_dict["fight_date"]).date()
+            fight_data = parse_fight_detail(session, row_dict["fight_url"])
 
-        red_profile = fighter_profile(row_dict["red_fighter_url"])
-        blue_profile = fighter_profile(row_dict["blue_fighter_url"])
-        red_prefight = summarize_prefight_stats(red_profile["history"], fight_date)
-        blue_prefight = summarize_prefight_stats(blue_profile["history"], fight_date)
+            red_profile = fighter_profile(row_dict["red_fighter_url"])
+            blue_profile = fighter_profile(row_dict["blue_fighter_url"])
+            red_prefight = summarize_prefight_stats(red_profile["history"], fight_date)
+            blue_prefight = summarize_prefight_stats(blue_profile["history"], fight_date)
 
-        row_dict.update(
-            {
-                "red_winner": fight_data["red_winner"],
-                "method": fight_data["method"],
-                "finish_details": fight_data["finish_details"],
-                "finish_round": fight_data["finish_round"],
-                "finish_time": fight_data["finish_time"],
-                "title_bout": fight_data["title_bout"],
-                "weight_class": fight_data["weight_class"],
-                "gender": infer_gender(fight_data["weight_class"]),
-                "number_of_rounds": fight_data["number_of_rounds"],
-                "red_height_cms": red_profile["height_cms"],
-                "blue_height_cms": blue_profile["height_cms"],
-                "red_reach_cms": red_profile["reach_cms"],
-                "blue_reach_cms": blue_profile["reach_cms"],
-                "red_stance": red_profile["stance"],
-                "blue_stance": blue_profile["stance"],
-                "red_age": age_on_fight_date(red_profile["dob"], fight_date),
-                "blue_age": age_on_fight_date(blue_profile["dob"], fight_date),
-                "red_sig_str_landed_per_min": red_profile["sig_str_landed_per_min"],
-                "blue_sig_str_landed_per_min": blue_profile["sig_str_landed_per_min"],
-                "red_avg_sub_att": red_profile["avg_sub_att"],
-                "blue_avg_sub_att": blue_profile["avg_sub_att"],
-                "red_avg_td_landed": red_profile["avg_td_landed"],
-                "blue_avg_td_landed": blue_profile["avg_td_landed"],
-                "red_current_lose_streak": red_prefight["current_lose_streak"],
-                "blue_current_lose_streak": blue_prefight["current_lose_streak"],
-                "red_current_win_streak": red_prefight["current_win_streak"],
-                "blue_current_win_streak": blue_prefight["current_win_streak"],
-                "red_longest_win_streak": red_prefight["longest_win_streak"],
-                "blue_longest_win_streak": blue_prefight["longest_win_streak"],
-                "red_losses": red_prefight["losses"],
-                "blue_losses": blue_prefight["losses"],
-                "red_total_rounds_fought": red_prefight["total_rounds_fought"],
-                "blue_total_rounds_fought": blue_prefight["total_rounds_fought"],
-                "red_total_title_bouts": red_prefight["total_title_bouts"],
-                "blue_total_title_bouts": blue_prefight["total_title_bouts"],
-                "red_wins_by_ko": red_prefight["wins_by_ko"],
-                "blue_wins_by_ko": blue_prefight["wins_by_ko"],
-                "red_wins_by_submission": red_prefight["wins_by_submission"],
-                "blue_wins_by_submission": blue_prefight["wins_by_submission"],
-                "red_wins": red_prefight["wins"],
-                "blue_wins": blue_prefight["wins"],
-            }
-        )
-        enriched_rows.append(row_dict)
+            row_dict.update(
+                {
+                    "red_winner": fight_data["red_winner"],
+                    "method": fight_data["method"],
+                    "finish_details": fight_data["finish_details"],
+                    "finish_round": fight_data["finish_round"],
+                    "finish_time": fight_data["finish_time"],
+                    "title_bout": fight_data["title_bout"],
+                    "weight_class": fight_data["weight_class"],
+                    "gender": infer_gender(fight_data["weight_class"]),
+                    "number_of_rounds": fight_data["number_of_rounds"],
+                    "red_height_cms": red_profile["height_cms"],
+                    "blue_height_cms": blue_profile["height_cms"],
+                    "red_reach_cms": red_profile["reach_cms"],
+                    "blue_reach_cms": blue_profile["reach_cms"],
+                    "red_stance": red_profile["stance"],
+                    "blue_stance": blue_profile["stance"],
+                    "red_age": age_on_fight_date(red_profile["dob"], fight_date),
+                    "blue_age": age_on_fight_date(blue_profile["dob"], fight_date),
+                    "red_sig_str_landed_per_min": red_profile["sig_str_landed_per_min"],
+                    "blue_sig_str_landed_per_min": blue_profile["sig_str_landed_per_min"],
+                    "red_avg_sub_att": red_profile["avg_sub_att"],
+                    "blue_avg_sub_att": blue_profile["avg_sub_att"],
+                    "red_avg_td_landed": red_profile["avg_td_landed"],
+                    "blue_avg_td_landed": blue_profile["avg_td_landed"],
+                    "red_current_lose_streak": red_prefight["current_lose_streak"],
+                    "blue_current_lose_streak": blue_prefight["current_lose_streak"],
+                    "red_current_win_streak": red_prefight["current_win_streak"],
+                    "blue_current_win_streak": blue_prefight["current_win_streak"],
+                    "red_longest_win_streak": red_prefight["longest_win_streak"],
+                    "blue_longest_win_streak": blue_prefight["longest_win_streak"],
+                    "red_losses": red_prefight["losses"],
+                    "blue_losses": blue_prefight["losses"],
+                    "red_total_rounds_fought": red_prefight["total_rounds_fought"],
+                    "blue_total_rounds_fought": blue_prefight["total_rounds_fought"],
+                    "red_total_title_bouts": red_prefight["total_title_bouts"],
+                    "blue_total_title_bouts": blue_prefight["total_title_bouts"],
+                    "red_wins_by_ko": red_prefight["wins_by_ko"],
+                    "blue_wins_by_ko": blue_prefight["wins_by_ko"],
+                    "red_wins_by_submission": red_prefight["wins_by_submission"],
+                    "blue_wins_by_submission": blue_prefight["wins_by_submission"],
+                    "red_wins": red_prefight["wins"],
+                    "blue_wins": blue_prefight["wins"],
+                }
+            )
+            enriched_rows.append(row_dict)
 
-    return pd.DataFrame(enriched_rows)
+        return pd.DataFrame(enriched_rows)
+    finally:
+        session.close()
 
 # Getting fight details
 def parse_fight_detail(session: requests.Session, fight_url: str) -> dict[str, Any]:

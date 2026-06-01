@@ -4,6 +4,7 @@ import "../style/navbar.css";
 
 const Navbar = () => {
   const location = useLocation();
+  const statsRouteIsActive = location.pathname === "/" || location.pathname === "/stats";
 //Setting up our navbar with routing
   return (
     <div className="navbar w-full">
@@ -15,9 +16,9 @@ const Navbar = () => {
           <li className="navbar-item">
             <Link
               to="/"
-              className={location.pathname === "/" ? "navbar-link active-link" : "navbar-link"}
+              className={statsRouteIsActive ? "navbar-link active-link" : "navbar-link"}
             >
-              Predictor
+              Stats
             </Link>
           </li>
           <li className="navbar-item">
@@ -28,16 +29,6 @@ const Navbar = () => {
               }
             >
               About
-            </Link>
-          </li>
-          <li className="navbar-item">
-            <Link
-              to="/stats"
-              className={
-                location.pathname === "/stats" ? "navbar-link active-link" : "navbar-link"
-              }
-            >
-              Stats
             </Link>
           </li>
         </ul>

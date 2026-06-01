@@ -96,29 +96,32 @@ def parse_upcoming_event_row(fight_row, fight_index: int) -> dict[str, Any]:
 def initialize_upcoming_rows(today: date | None = None) -> list[dict[str, Any]]:
     start_date = today or date.today()
     session = create_session()
-    event = get_nearest_upcoming_event(session, start_date)
-    event_soup = get_soup(session, event["event_url"])
+    try:
+        event = get_nearest_upcoming_event(session, start_date)
+        event_soup = get_soup(session, event["event_url"])
 
-    rows: list[dict[str, Any]] = []
-    for fight_index, fight_row in enumerate(event_soup.select("tr.b-fight-details__table-row.js-fight-details-click")):
-        row_data = parse_upcoming_event_row(fight_row, fight_index)
-        rows.append(
-            {
-                "fight_date": event["fight_date"],
-                "event_name": event["event_name"],
-                "location": event["location"],
-                "event_url": event["event_url"],
-                "fight_url": row_data["fight_url"],
-                "red_fighter": row_data["red_fighter"],
-                "blue_fighter": row_data["blue_fighter"],
-                "red_fighter_url": row_data["red_fighter_url"],
-                "blue_fighter_url": row_data["blue_fighter_url"],
-                "title_bout": row_data["title_bout"],
-                "weight_class": row_data["weight_class"],
-                "number_of_rounds": row_data["number_of_rounds"],
-            }
-        )
-    return rows
+        rows: list[dict[str, Any]] = []
+        for fight_index, fight_row in enumerate(event_soup.select("tr.b-fight-details__table-row.js-fight-details-click")):
+            row_data = parse_upcoming_event_row(fight_row, fight_index)
+            rows.append(
+                {
+                    "fight_date": event["fight_date"],
+                    "event_name": event["event_name"],
+                    "location": event["location"],
+                    "event_url": event["event_url"],
+                    "fight_url": row_data["fight_url"],
+                    "red_fighter": row_data["red_fighter"],
+                    "blue_fighter": row_data["blue_fighter"],
+                    "red_fighter_url": row_data["red_fighter_url"],
+                    "blue_fighter_url": row_data["blue_fighter_url"],
+                    "title_bout": row_data["title_bout"],
+                    "weight_class": row_data["weight_class"],
+                    "number_of_rounds": row_data["number_of_rounds"],
+                }
+            )
+        return rows
+    finally:
+        session.close()
 
 
 # Adding this fight data to the dataframe
@@ -127,62 +130,65 @@ def apply_upcoming_ufcstats_data(df: pd.DataFrame) -> pd.DataFrame:
         return df.copy()
 
     session = create_session()
-    fighter_profile = build_fighter_profile_lookup(session)
+    try:
+        fighter_profile = build_fighter_profile_lookup(session)
 
-    enriched_rows: list[dict[str, Any]] = []
-    for _, row in df.iterrows():
-        row_dict = row.to_dict()
-        fight_date = pd.to_datetime(row_dict["fight_date"]).date()
+        enriched_rows: list[dict[str, Any]] = []
+        for _, row in df.iterrows():
+            row_dict = row.to_dict()
+            fight_date = pd.to_datetime(row_dict["fight_date"]).date()
 
-        red_profile = fighter_profile(row_dict["red_fighter_url"])
-        blue_profile = fighter_profile(row_dict["blue_fighter_url"])
-        red_prefight = summarize_prefight_stats(red_profile["history"], fight_date)
-        blue_prefight = summarize_prefight_stats(blue_profile["history"], fight_date)
+            red_profile = fighter_profile(row_dict["red_fighter_url"])
+            blue_profile = fighter_profile(row_dict["blue_fighter_url"])
+            red_prefight = summarize_prefight_stats(red_profile["history"], fight_date)
+            blue_prefight = summarize_prefight_stats(blue_profile["history"], fight_date)
 
-        title_bout = bool(row_dict["title_bout"]) if pd.notna(row_dict["title_bout"]) else False
-        weight_class = clean_text(row_dict["weight_class"])
-        number_of_rounds = row_dict["number_of_rounds"] or (5 if title_bout else 3)
+            title_bout = bool(row_dict["title_bout"]) if pd.notna(row_dict["title_bout"]) else False
+            weight_class = clean_text(row_dict["weight_class"])
+            number_of_rounds = row_dict["number_of_rounds"] or (5 if title_bout else 3)
 
-        row_dict.update(
-            {
-                "title_bout": title_bout,
-                "weight_class": weight_class,
-                "gender": infer_gender(weight_class),
-                "number_of_rounds": number_of_rounds,
-                "red_height_cms": red_profile["height_cms"],
-                "blue_height_cms": blue_profile["height_cms"],
-                "red_reach_cms": red_profile["reach_cms"],
-                "blue_reach_cms": blue_profile["reach_cms"],
-                "red_stance": red_profile["stance"],
-                "blue_stance": blue_profile["stance"],
-                "red_age": age_on_fight_date(red_profile["dob"], fight_date),
-                "blue_age": age_on_fight_date(blue_profile["dob"], fight_date),
-                "red_sig_str_landed_per_min": red_profile["sig_str_landed_per_min"],
-                "blue_sig_str_landed_per_min": blue_profile["sig_str_landed_per_min"],
-                "red_avg_sub_att": red_profile["avg_sub_att"],
-                "blue_avg_sub_att": blue_profile["avg_sub_att"],
-                "red_avg_td_landed": red_profile["avg_td_landed"],
-                "blue_avg_td_landed": blue_profile["avg_td_landed"],
-                "red_current_lose_streak": red_prefight["current_lose_streak"],
-                "blue_current_lose_streak": blue_prefight["current_lose_streak"],
-                "red_current_win_streak": red_prefight["current_win_streak"],
-                "blue_current_win_streak": blue_prefight["current_win_streak"],
-                "red_longest_win_streak": red_prefight["longest_win_streak"],
-                "blue_longest_win_streak": blue_prefight["longest_win_streak"],
-                "red_losses": red_prefight["losses"],
-                "blue_losses": blue_prefight["losses"],
-                "red_total_rounds_fought": red_prefight["total_rounds_fought"],
-                "blue_total_rounds_fought": blue_prefight["total_rounds_fought"],
-                "red_total_title_bouts": red_prefight["total_title_bouts"],
-                "blue_total_title_bouts": blue_prefight["total_title_bouts"],
-                "red_wins_by_ko": red_prefight["wins_by_ko"],
-                "blue_wins_by_ko": blue_prefight["wins_by_ko"],
-                "red_wins_by_submission": red_prefight["wins_by_submission"],
-                "blue_wins_by_submission": blue_prefight["wins_by_submission"],
-                "red_wins": red_prefight["wins"],
-                "blue_wins": blue_prefight["wins"],
-            }
-        )
-        enriched_rows.append(row_dict)
+            row_dict.update(
+                {
+                    "title_bout": title_bout,
+                    "weight_class": weight_class,
+                    "gender": infer_gender(weight_class),
+                    "number_of_rounds": number_of_rounds,
+                    "red_height_cms": red_profile["height_cms"],
+                    "blue_height_cms": blue_profile["height_cms"],
+                    "red_reach_cms": red_profile["reach_cms"],
+                    "blue_reach_cms": blue_profile["reach_cms"],
+                    "red_stance": red_profile["stance"],
+                    "blue_stance": blue_profile["stance"],
+                    "red_age": age_on_fight_date(red_profile["dob"], fight_date),
+                    "blue_age": age_on_fight_date(blue_profile["dob"], fight_date),
+                    "red_sig_str_landed_per_min": red_profile["sig_str_landed_per_min"],
+                    "blue_sig_str_landed_per_min": blue_profile["sig_str_landed_per_min"],
+                    "red_avg_sub_att": red_profile["avg_sub_att"],
+                    "blue_avg_sub_att": blue_profile["avg_sub_att"],
+                    "red_avg_td_landed": red_profile["avg_td_landed"],
+                    "blue_avg_td_landed": blue_profile["avg_td_landed"],
+                    "red_current_lose_streak": red_prefight["current_lose_streak"],
+                    "blue_current_lose_streak": blue_prefight["current_lose_streak"],
+                    "red_current_win_streak": red_prefight["current_win_streak"],
+                    "blue_current_win_streak": blue_prefight["current_win_streak"],
+                    "red_longest_win_streak": red_prefight["longest_win_streak"],
+                    "blue_longest_win_streak": blue_prefight["longest_win_streak"],
+                    "red_losses": red_prefight["losses"],
+                    "blue_losses": blue_prefight["losses"],
+                    "red_total_rounds_fought": red_prefight["total_rounds_fought"],
+                    "blue_total_rounds_fought": blue_prefight["total_rounds_fought"],
+                    "red_total_title_bouts": red_prefight["total_title_bouts"],
+                    "blue_total_title_bouts": blue_prefight["total_title_bouts"],
+                    "red_wins_by_ko": red_prefight["wins_by_ko"],
+                    "blue_wins_by_ko": blue_prefight["wins_by_ko"],
+                    "red_wins_by_submission": red_prefight["wins_by_submission"],
+                    "blue_wins_by_submission": blue_prefight["wins_by_submission"],
+                    "red_wins": red_prefight["wins"],
+                    "blue_wins": blue_prefight["wins"],
+                }
+            )
+            enriched_rows.append(row_dict)
 
-    return pd.DataFrame(enriched_rows)
+        return pd.DataFrame(enriched_rows)
+    finally:
+        session.close()

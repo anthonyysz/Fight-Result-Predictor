@@ -21,6 +21,7 @@ dependencies = [
     "boto3",
     "matplotlib",
     "seaborn",
+    "playwright",
 ]
 
 [tool.setuptools]
@@ -28,4 +29,4 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["historical_scraper*", "upcoming_scraper*", "api*", "model_training*", "shared*"]
+include = ["historical_scraper*", "upcoming_scraper*", "api*", "model_training*", "shared*", "maintenance*"]

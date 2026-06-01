@@ -82,6 +82,65 @@
   text-align: center;
 }
 
+.stats-cta-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.9fr);
+  gap: 24px;
+  padding: 28px;
+  background: linear-gradient(135deg, rgba(240, 138, 36, 0.16), rgba(34, 37, 41, 0.96));
+  border: 1px solid rgba(240, 138, 36, 0.24);
+  border-radius: 20px;
+  box-shadow: var(--shadow-color);
+}
+
+.stats-cta-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.stats-cta-title {
+  font-size: 30px;
+  line-height: 36px;
+  font-weight: bold;
+  color: var(--text-color);
+}
+
+.stats-cta-text,
+.stats-cta-note {
+  font-size: 17px;
+  line-height: 27px;
+  color: var(--paragraph-color);
+}
+
+.stats-cta-actions {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 14px;
+  padding: 20px;
+  background-color: rgba(34, 37, 41, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+}
+
+.stats-cta-button {
+  border: none;
+  border-radius: 9999px;
+  padding: 14px 18px;
+  background-color: var(--accent-color);
+  color: #1f2125;
+  font-size: 16px;
+  line-height: 20px;
+  font-weight: 700;
+  cursor: not-allowed;
+  opacity: 0.9;
+}
+
+.stats-cta-button:disabled {
+  color: #1f2125;
+}
+
 /* Different screen sizes */ 
 @media (max-width: 900px) {
   .stats-heading-row {
@@ -92,6 +151,10 @@
   .stats-bio-text {
     max-width: none;
     text-align: left;
+  }
+
+  .stats-cta-shell {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -116,8 +179,23 @@
     line-height: 24px;
   }
 
+  .stats-cta-title {
+    font-size: 24px;
+    line-height: 30px;
+  }
+
+  .stats-cta-text,
+  .stats-cta-note {
+    font-size: 15px;
+    line-height: 24px;
+  }
+
   .stats-chart-shell {
     min-height: 300px;
     padding: 12px;
+  }
+
+  .stats-cta-shell {
+    padding: 20px;
   }
 }

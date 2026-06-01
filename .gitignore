@@ -30,3 +30,5 @@ frp-eb-deploy/
 
 backend/data/generated
 backend/db/all_fights.csv
+
+backups/

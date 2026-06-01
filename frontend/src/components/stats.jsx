@@ -1,20 +1,8 @@
 import React, { useState } from "react";
 import "../style/stats.css";
 
-const DEFAULT_LOCAL_API_BASE_URL = "http://127.0.0.1:8000";
-
-const normalizeApiBaseUrl = (value) => {
-  if (!value) {
-    return DEFAULT_LOCAL_API_BASE_URL;
-  }
-
-  const trimmed = value.trim().replace(/\/+$/, "");
-  return trimmed || DEFAULT_LOCAL_API_BASE_URL;
-};
-
-const API_BASE_URL = normalizeApiBaseUrl(process.env.REACT_APP_API_BASE_URL);
-const AVERAGE_RETURN_CHART_URL = `${API_BASE_URL}/stats/average-return-chart`;
-const TOP_EVENTS_CHART_URL = `${API_BASE_URL}/stats/top-betting-events-chart`;
+const AVERAGE_RETURN_CHART_URL = "/generated/average-return-chart.png";
+const TOP_EVENTS_CHART_URL = "/generated/top-betting-events-chart.png";
 
 const Stats = () => {
   const [averageReturnLoading, setAverageReturnLoading] = useState(true);
@@ -28,12 +16,12 @@ const Stats = () => {
         <div className="stats-heading-row">
           <div>
             <p className="stats-greeting-text">Historical results</p>
-            <h1 className="stats-title-text">Average Return</h1>
+            <h1 className="stats-title-text">Model Performance</h1>
           </div>
 
           <p className="stats-bio-text">
-            Average Model Return Rate per Fight Card<br></br>
-            (This will look more readable as more fights happen)
+            Track how the model has performed so far, then join the list to get
+            the next fight card picks delivered before the weekend.
           </p>
         </div>
 
@@ -92,6 +80,30 @@ const Stats = () => {
             }}
           />
         </div>
+
+        <section className="stats-cta-shell" aria-labelledby="email-cta-title">
+          <div className="stats-cta-copy">
+            <p className="stats-greeting-text">Weekly picks by email</p>
+            <h2 className="stats-cta-title" id="email-cta-title">
+              Want the full upcoming fight table?
+            </h2>
+            <p className="stats-cta-text">
+              The public site now highlights long-term performance. Upcoming
+              picks and the full fight card table will be sent through an email
+              list once the subscription flow is ready.
+            </p>
+          </div>
+
+          <div className="stats-cta-actions">
+            <button className="stats-cta-button" type="button" disabled>
+              Email signup coming soon
+            </button>
+            <p className="stats-cta-note">
+              Until the email list goes live, this section is a placeholder for
+              the future subscription experience.
+            </p>
+          </div>
+        </section>
       </div>
     </div>
   );
