@@ -32,5 +32,4 @@ backend/data/generated
 backend/db/all_fights.csv
 
 backups/
-scripts/
 docs/

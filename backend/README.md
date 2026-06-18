@@ -40,11 +40,6 @@ To start it:
 $env:PYTHONPATH = (Resolve-Path .\src).Path
 ```
 
-To clear it:
-```powershell
-Stop-Process -Id 29604
-```
-
 To reload it:
 ```powershell
 & "C:\Users\Anthony\GitHub\fight-result-predictor\.venv\Scripts\python.exe" -m uvicorn api.app:app --host 127.0.0.1 --port 8000 --reload
@@ -131,3 +126,10 @@ Register the local Windows scheduled tasks:
 ```
 
 The scheduler calls `POST /admin/automation/fight-week-report`, generates the latest CSV/HTML/text report under `backend/data/generated/mailings`, appends to `queue.json`, and schedules Mailchimp when `MAILCHIMP_DRY_RUN=false`.
+
+Send a fight-week report immediately without starting the FastAPI backend:
+```powershell
+.\scripts\send-fight-report-now.ps1 -RunType late
+```
+
+The immediate command scrapes the nearest event for the current week, loads the generated CSVs into Postgres, generates predictions, writes the latest report files, and sends the Mailchimp campaign immediately when `MAILCHIMP_DRY_RUN=false`. Use `-RunType early` if you want the email subject/archive labeled as an early report.
