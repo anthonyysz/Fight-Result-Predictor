@@ -6,7 +6,7 @@
   - Historical and upcoming fight scrapers
   - Model backtesting, training and selection
   - All data, generated or referenced
-  - Local FastAPI functions to scrape, load, predict, resolve data, and queue fight week email reports
+  - Local FastAPI functions to scrape, load, predict, resolve data, and generate fight week reports
 - `frontend/`
   - Front end react app
   - Static signup and stats site
@@ -47,7 +47,7 @@
 
 ## 4. The Front End
 
-&nbsp;&nbsp;I built the front end using react and tailwind. My front end experience is limited, so I stuck with what I know and built something basic. The public home page now collects mailing list subscribers through a Mailchimp embedded form, while model updates and fight week reports run from the local backend.
+&nbsp;&nbsp;I built the front end using react and tailwind. My front end experience is limited, so I stuck with what I know and built something basic. The public home page now stays local-only, while model updates and fight week reports run from the local backend.
 
 ## 5. The Back End
 
@@ -67,8 +67,8 @@
 
 ### 5c. Model Training and API Integration
 
-&nbsp;&nbsp;For the model training section, I just copied my code from my backtesting notebook. Code that wasn't previously a function was made into one. My FastAPI app is used locally to run the scrapers, generate predictions, load csv files into the database, and generate Mailchimp-ready fight week reports. There is a separate README.md for the back end that explains how to use everything.
+&nbsp;&nbsp;For the model training section, I just copied my code from my backtesting notebook. Code that wasn't previously a function was made into one. My FastAPI app is used locally to run the scrapers, generate predictions, load csv files into the database, and generate local fight week reports. There is a separate README.md for the back end that explains how to use everything.
 
 ## 6. Looking ahead
 
-&nbsp;&nbsp;There are a couple of things I'd like to do to improve this project. Firstly, I'd love to automate it so that it updates the predictions every few days before the fights and automatically finishes the fights once the event is complete. This way I could just let it run and not worry about it, only checking in every week to make sure that the proper data is added to the databse and no errors occurred. I'd also like to expand the UI to include some statistics or an interactive interface so the user can see how my models tend to perform. A wider front end would give the user more confidence in what I've built.
+&nbsp;&nbsp;There are a couple of things I'd like to do to improve this project. I'd like to make the manual data refresh and report generation workflow easier to run and inspect. I'd also like to expand the UI to include more statistics or an interactive interface so the user can see how my models tend to perform. A wider front end would give the user more confidence in what I've built.

@@ -42,6 +42,7 @@ def fetch_average_return_frame(conn) -> pd.DataFrame:
     frame["fight_date"] = pd.to_datetime(frame["fight_date"])
     frame["average_return"] = pd.to_numeric(frame["average_return"])
     frame["fight_count"] = pd.to_numeric(frame["fight_count"])
+    frame["progressive_average_return"] = frame["average_return"].expanding().mean()
     return frame
 
 
@@ -148,7 +149,7 @@ def render_average_return_chart(conn: Any) -> bytes:
     sns.lineplot(
         data=frame,
         x="fight_date",
-        y="average_return",
+        y="progressive_average_return",
         marker="o",
         linewidth=2.5,
         markersize=7,
@@ -157,9 +158,9 @@ def render_average_return_chart(conn: Any) -> bytes:
     )
 
     ax.axhline(1.0, color="#e7e9ec", linestyle="--", linewidth=1.2, alpha=0.75)
-    ax.set_title("Average Return by Fight Date", fontsize=18, fontweight="bold", pad=16)
+    ax.set_title("Cumulative Average Return by Fight Date", fontsize=18, fontweight="bold", pad=16)
     ax.set_xlabel("Fight Date", labelpad=10)
-    ax.set_ylabel("Average Return", labelpad=10)
+    ax.set_ylabel("Average Return to Date", labelpad=10)
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %d"))
     ax.tick_params(axis="x", rotation=35)
     ax.margins(x=0.04, y=0.12)

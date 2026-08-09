@@ -9,7 +9,6 @@ phases:
       - npm ci
   build:
     commands:
-      - test -n "$REACT_APP_MAILCHIMP_SIGNUP_ACTION" || (echo "Missing REACT_APP_MAILCHIMP_SIGNUP_ACTION for production signup form" && exit 1)
       - npm run build
   post_build:
     commands:

@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import os
-from datetime import date, datetime
+from datetime import date, timedelta
 from typing import Any, Literal
 
 import pandas as pd
 import psycopg
 from fastapi import Depends, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
-from automation.fight_week import run_fight_week_report
+from reports.fight_week import generate_fight_week_report
 from api.stats import (
     render_average_return_chart,
     render_suggested_bet_confidence_chart,
@@ -211,22 +211,18 @@ class PredictionGenerateResponse(BaseModel):
 
 
 class FightWeekReportRequest(BaseModel):
-    run_type: Literal["early", "late"]
-    scheduled_for: datetime | None = None
+    reference_date: date | None = None
 
 
 class FightWeekReportResponse(BaseModel):
     message: str
     status: str
-    run_type: str
     event_name: str | None = None
     event_date: str | None = None
-    scheduled_for: str
     generated_at: str
-    dry_run: bool | None = None
-    mailchimp_campaign_id: str | None = None
+    report_title: str | None = None
     report_paths: dict[str, str] | None = None
-    queue_path: str | None = None
+    history_path: str | None = None
 
 
 class UpcomingPredictionRow(BaseModel):
@@ -498,7 +494,11 @@ def scrape_recent_fights(payload: RecentScrapeRequest) -> ScrapeResponse:
     start_date = payload.start_date
     if start_date is None:
         latest_fight_date = lookup_database_latest_fight_date()
-        start_date = parse_us_date(latest_fight_date) if latest_fight_date else parse_us_date(DEFAULT_START_DATE)
+        start_date = (
+            parse_us_date(latest_fight_date) + timedelta(days=1)
+            if latest_fight_date
+            else parse_us_date(DEFAULT_START_DATE)
+        )
 
     summary = run_recent_scrape(start_date)
     return ScrapeResponse(
@@ -627,26 +627,22 @@ def generate_upcoming_predictions_route(conn=Depends(get_db_connection)) -> Pred
     )
 
 
-@app.post("/admin/automation/fight-week-report", response_model=FightWeekReportResponse)
-def run_fight_week_report_route(
-    payload: FightWeekReportRequest,
+@app.post("/admin/fight-week-report", response_model=FightWeekReportResponse)
+def generate_fight_week_report_route(
+    payload: FightWeekReportRequest = FightWeekReportRequest(),
     conn=Depends(get_db_connection),
 ) -> FightWeekReportResponse:
-    summary = run_fight_week_report(
+    summary = generate_fight_week_report(
         conn,
-        run_type=payload.run_type,
-        scheduled_for=payload.scheduled_for,
+        reference_date=payload.reference_date,
     )
     return FightWeekReportResponse(
-        message="Fight week report automation complete",
+        message="Fight week report generated",
         status=summary["status"],
-        run_type=summary["run_type"],
         event_name=summary.get("event_name"),
         event_date=summary.get("event_date"),
-        scheduled_for=summary["scheduled_for"],
         generated_at=summary["generated_at"],
-        dry_run=summary.get("dry_run"),
-        mailchimp_campaign_id=summary.get("mailchimp_campaign_id"),
+        report_title=summary.get("report_title"),
         report_paths=summary.get("report_paths"),
-        queue_path=summary.get("queue_path"),
+        history_path=summary.get("history_path"),
     )

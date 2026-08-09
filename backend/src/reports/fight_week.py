@@ -1,17 +1,14 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import date, datetime, timedelta
 from html import escape
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 from zoneinfo import ZoneInfo
 
 import pandas as pd
-import requests
 
-from shared.config import get_setting
 from upcoming_scraper.main import run_upcoming_scrape
 from upcoming_scraper.predictions import generate_upcoming_predictions
 from upcoming_scraper.sources.ufcstats_scraper import initialize_upcoming_rows
@@ -27,57 +24,9 @@ from upcoming_scraper.loaders import (
 EASTERN = ZoneInfo("America/New_York")
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 GENERATED_DIR = BACKEND_DIR / "data" / "generated"
-MAILING_DIR = GENERATED_DIR / "mailings"
-ARCHIVE_DIR = MAILING_DIR / "archive"
-QUEUE_PATH = MAILING_DIR / "queue.json"
-SEND_WINDOW_GRACE_MINUTES = 5
-
-ReportRunType = Literal["early", "late"]
-
-
-@dataclass(frozen=True)
-class MailchimpConfig:
-    api_key: str | None
-    server_prefix: str | None
-    list_id: str | None
-    from_name: str
-    reply_to: str | None
-    report_tag: str
-    dry_run: bool
-
-
-def parse_bool_setting(value: str | None, default: bool = False) -> bool:
-    if value is None:
-        return default
-    return value.strip().lower() in {"1", "true", "yes", "y", "on"}
-
-
-def get_mailchimp_config() -> MailchimpConfig:
-    return MailchimpConfig(
-        api_key=get_setting("MAILCHIMP_API_KEY"),
-        server_prefix=get_setting("MAILCHIMP_SERVER_PREFIX"),
-        list_id=get_setting("MAILCHIMP_LIST_ID"),
-        from_name=get_setting("MAILCHIMP_FROM_NAME", "Fight Result Predictor") or "Fight Result Predictor",
-        reply_to=get_setting("MAILCHIMP_REPLY_TO"),
-        report_tag=get_setting("MAILCHIMP_REPORT_TAG", "fight-week-report") or "fight-week-report",
-        dry_run=parse_bool_setting(get_setting("MAILCHIMP_DRY_RUN"), default=True),
-    )
-
-
-def coerce_eastern(value: datetime | None) -> datetime:
-    if value is None:
-        return datetime.now(EASTERN)
-    if value.tzinfo is None:
-        return value.replace(tzinfo=EASTERN)
-    return value.astimezone(EASTERN)
-
-
-def build_default_send_time(now_eastern: datetime) -> datetime:
-    return datetime.combine(now_eastern.date(), time(12, 0), tzinfo=EASTERN)
-
-
-def is_missed_send_window(target_send_at: datetime, now_eastern: datetime) -> bool:
-    return now_eastern > target_send_at + timedelta(minutes=SEND_WINDOW_GRACE_MINUTES)
+REPORT_DIR = GENERATED_DIR / "reports"
+ARCHIVE_DIR = REPORT_DIR / "archive"
+HISTORY_PATH = REPORT_DIR / "history.json"
 
 
 def is_fight_weekend(fight_date: date, reference_date: date) -> bool:
@@ -201,7 +150,7 @@ def format_expected_value(value: Any) -> str:
     return f"{float(value):.2f}"
 
 
-def build_report_html(event_name: str, event_date: date, run_type: ReportRunType, rows: list[dict[str, Any]]) -> str:
+def build_report_html(event_name: str, event_date: date, rows: list[dict[str, Any]]) -> str:
     font = "Raleway, Arial, sans-serif"
     bg_color = "#2c2f33"
     header_color = "#222529"
@@ -314,9 +263,8 @@ def build_report_html(event_name: str, event_date: date, run_type: ReportRunType
 """
 
 
-def build_report_text(event_name: str, event_date: date, run_type: ReportRunType, rows: list[dict[str, Any]]) -> str:
-    report_label = "Early" if run_type == "early" else "Late"
-    lines = [f"{report_label} Fight Week Predictions", event_name, event_date.isoformat(), ""]
+def build_report_text(event_name: str, event_date: date, rows: list[dict[str, Any]]) -> str:
+    lines = ["Fight Week Predictions", event_name, event_date.isoformat(), ""]
     for row in rows:
         lines.append(
             f"{row['red_fighter']} vs {row['blue_fighter']} | "
@@ -330,28 +278,26 @@ def build_report_text(event_name: str, event_date: date, run_type: ReportRunType
 def save_report_files(
     event_name: str,
     event_date: date,
-    run_type: ReportRunType,
     rows: list[dict[str, Any]],
     generated_at: datetime,
 ) -> dict[str, str]:
-    MAILING_DIR.mkdir(parents=True, exist_ok=True)
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
     ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
     timestamp = generated_at.strftime("%Y%m%d_%H%M%S")
-    archive_stem = f"{timestamp}_{run_type}"
 
     csv_df = pd.DataFrame(rows)
-    latest_csv = MAILING_DIR / "latest.csv"
-    archive_csv = ARCHIVE_DIR / f"{archive_stem}.csv"
+    latest_csv = REPORT_DIR / "latest.csv"
+    archive_csv = ARCHIVE_DIR / f"{timestamp}.csv"
     csv_df.to_csv(latest_csv, index=False)
     csv_df.to_csv(archive_csv, index=False)
 
-    html = build_report_html(event_name, event_date, run_type, rows)
-    text = build_report_text(event_name, event_date, run_type, rows)
+    html = build_report_html(event_name, event_date, rows)
+    text = build_report_text(event_name, event_date, rows)
 
-    latest_html = MAILING_DIR / "latest.html"
-    latest_text = MAILING_DIR / "latest.txt"
-    archive_html = ARCHIVE_DIR / f"{archive_stem}.html"
-    archive_text = ARCHIVE_DIR / f"{archive_stem}.txt"
+    latest_html = REPORT_DIR / "latest.html"
+    latest_text = REPORT_DIR / "latest.txt"
+    archive_html = ARCHIVE_DIR / f"{timestamp}.html"
+    archive_text = ARCHIVE_DIR / f"{timestamp}.txt"
 
     latest_html.write_text(html, encoding="utf-8")
     latest_text.write_text(text, encoding="utf-8")
@@ -368,240 +314,42 @@ def save_report_files(
     }
 
 
-def mailchimp_request(config: MailchimpConfig, method: str, path: str, payload: dict[str, Any]) -> dict[str, Any]:
-    if not config.api_key or not config.server_prefix:
-        raise RuntimeError("MAILCHIMP_API_KEY and MAILCHIMP_SERVER_PREFIX are required when dry run is disabled.")
-
-    url = f"https://{config.server_prefix}.api.mailchimp.com/3.0{path}"
-    response = requests.request(
-        method,
-        url,
-        auth=("fight-result-predictor", config.api_key),
-        json=payload,
-        timeout=30,
-    )
-    if response.status_code >= 400:
-        try:
-            detail = response.json()
-        except ValueError:
-            detail = response.text
-        raise RuntimeError(f"Mailchimp API request failed: {response.status_code} {detail}")
-    return response.json() if response.content else {}
+def build_report_title(event_name: str) -> str:
+    return f"UFC picks: {event_name}"
 
 
-def create_or_schedule_mailchimp_campaign(
-    config: MailchimpConfig,
-    event_name: str,
-    run_type: ReportRunType,
-    html: str,
-    text: str,
-    send_at: datetime,
-) -> dict[str, Any]:
-    report_label = "Early" if run_type == "early" else "Late"
-    subject = f"{report_label} UFC picks: {event_name}"
-    if config.dry_run:
-        return {
-            "campaign_id": f"dry-run-{send_at.strftime('%Y%m%d%H%M%S')}-{run_type}",
-            "status": "dry_run",
-            "subject": subject,
-            "scheduled_for": send_at.isoformat(),
-        }
-
-    if not config.list_id or not config.reply_to:
-        raise RuntimeError("MAILCHIMP_LIST_ID and MAILCHIMP_REPLY_TO are required when dry run is disabled.")
-
-    campaign = mailchimp_request(
-        config,
-        "POST",
-        "/campaigns",
-        {
-            "type": "regular",
-            "recipients": {"list_id": config.list_id},
-            "settings": {
-                "subject_line": subject,
-                "preview_text": "Model picks for this weekend's UFC card.",
-                "from_name": config.from_name,
-                "reply_to": config.reply_to,
-                "title": f"{config.report_tag} {run_type} {send_at.date().isoformat()}",
-            },
-        },
-    )
-    campaign_id = campaign["id"]
-    mailchimp_request(config, "PUT", f"/campaigns/{campaign_id}/content", {"html": html, "plain_text": text})
-    schedule_time = send_at.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
-    mailchimp_request(config, "POST", f"/campaigns/{campaign_id}/actions/schedule", {"schedule_time": schedule_time})
-    return {
-        "campaign_id": campaign_id,
-        "status": "scheduled",
-        "subject": subject,
-        "scheduled_for": send_at.isoformat(),
-    }
-
-
-def create_and_send_mailchimp_campaign(
-    config: MailchimpConfig,
-    event_name: str,
-    run_type: ReportRunType,
-    html: str,
-    text: str,
-    sent_at: datetime,
-) -> dict[str, Any]:
-    report_label = "Early" if run_type == "early" else "Late"
-    subject = f"{report_label} UFC picks: {event_name}"
-    if config.dry_run:
-        return {
-            "campaign_id": f"dry-run-now-{sent_at.strftime('%Y%m%d%H%M%S')}-{run_type}",
-            "status": "dry_run",
-            "subject": subject,
-            "sent_at": sent_at.isoformat(),
-        }
-
-    if not config.list_id or not config.reply_to:
-        raise RuntimeError("MAILCHIMP_LIST_ID and MAILCHIMP_REPLY_TO are required when dry run is disabled.")
-
-    campaign = mailchimp_request(
-        config,
-        "POST",
-        "/campaigns",
-        {
-            "type": "regular",
-            "recipients": {"list_id": config.list_id},
-            "settings": {
-                "subject_line": subject,
-                "preview_text": "Model picks for this weekend's UFC card.",
-                "from_name": config.from_name,
-                "reply_to": config.reply_to,
-                "title": f"{config.report_tag} manual-now {run_type} {sent_at.strftime('%Y-%m-%d %H:%M:%S')}",
-            },
-        },
-    )
-    campaign_id = campaign["id"]
-    mailchimp_request(config, "PUT", f"/campaigns/{campaign_id}/content", {"html": html, "plain_text": text})
-    mailchimp_request(config, "POST", f"/campaigns/{campaign_id}/actions/send", {})
-    return {
-        "campaign_id": campaign_id,
-        "status": "send_requested",
-        "subject": subject,
-        "sent_at": sent_at.isoformat(),
-    }
-
-
-def append_queue_record(record: dict[str, Any]) -> None:
-    MAILING_DIR.mkdir(parents=True, exist_ok=True)
-    if QUEUE_PATH.exists():
-        queue = json.loads(QUEUE_PATH.read_text(encoding="utf-8"))
+def append_report_history(record: dict[str, Any]) -> None:
+    REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    if HISTORY_PATH.exists():
+        history = json.loads(HISTORY_PATH.read_text(encoding="utf-8"))
     else:
-        queue = []
-    queue.append(record)
-    QUEUE_PATH.write_text(json.dumps(queue, indent=2, default=str), encoding="utf-8")
+        history = []
+    history.append(record)
+    HISTORY_PATH.write_text(json.dumps(history, indent=2, default=str), encoding="utf-8")
 
 
 def build_skip_record(
-    run_type: ReportRunType,
     status: str,
     reason: str,
     event: dict[str, Any] | None,
     generated_at: datetime,
-    send_at: datetime,
 ) -> dict[str, Any]:
     return {
-        "run_type": run_type,
         "status": status,
         "reason": reason,
         "error_message": None,
         "event_name": event.get("event_name") if event else None,
         "event_date": event.get("event_date").isoformat() if event else None,
         "generated_at": generated_at.isoformat(),
-        "scheduled_for": send_at.isoformat(),
     }
 
 
-def run_fight_week_report(
+def generate_fight_week_report(
     conn,
-    run_type: ReportRunType,
-    scheduled_for: datetime | None = None,
-) -> dict[str, Any]:
-    generated_at = datetime.now(EASTERN)
-    send_at = coerce_eastern(scheduled_for) if scheduled_for else build_default_send_time(generated_at)
-    config = get_mailchimp_config()
-
-    if is_missed_send_window(send_at, generated_at) and not config.dry_run:
-        record = build_skip_record(
-            run_type,
-            "skipped_missed_send_window",
-            "The local job ran after the scheduled send window.",
-            None,
-            generated_at,
-            send_at,
-        )
-        append_queue_record(record)
-        return record
-
-    event = check_nearest_event(send_at.date())
-    event_date = event["event_date"]
-    event_name = event["event_name"]
-
-    if not is_fight_weekend(event_date, send_at.date()):
-        record = build_skip_record(
-            run_type,
-            "skipped_no_fight_weekend",
-            "The nearest UFC event is not on Friday, Saturday, or Sunday of this run week.",
-            event,
-            generated_at,
-            send_at,
-        )
-        append_queue_record(record)
-        return record
-
-    scrape_summary = run_upcoming_scrape(send_at.date())
-    fights_load = load_generated_csv(conn, UPCOMING_FIGHTS_CSV_PATH, UPCOMING_CSV_TO_DB_COLUMNS, UPSERT_UPCOMING)
-    metadata_load = load_generated_csv(
-        conn,
-        UPCOMING_METADATA_CSV_PATH,
-        UPCOMING_METADATA_CSV_TO_DB_COLUMNS,
-        UPSERT_UPCOMING_METADATA,
-    )
-    prediction_count, predicted_fights = generate_upcoming_predictions(conn)
-    report_rows = fetch_report_rows(conn, event_date, event_name)
-    if not report_rows:
-        raise RuntimeError(f"No report rows were available for {event_name} on {event_date.isoformat()}.")
-
-    paths = save_report_files(event_name, event_date, run_type, report_rows, generated_at)
-    html = Path(paths["latest_html"]).read_text(encoding="utf-8")
-    text = Path(paths["latest_text"]).read_text(encoding="utf-8")
-    campaign = create_or_schedule_mailchimp_campaign(config, event_name, run_type, html, text, send_at)
-
-    record = {
-        "run_type": run_type,
-        "status": campaign["status"],
-        "event_name": event_name,
-        "event_date": event_date.isoformat(),
-        "generated_at": generated_at.isoformat(),
-        "scheduled_for": send_at.isoformat(),
-        "mailchimp_campaign_id": campaign["campaign_id"],
-        "mailchimp_subject": campaign["subject"],
-        "error_message": None,
-        "dry_run": config.dry_run,
-        "report_paths": paths,
-        "scrape_summary": scrape_summary,
-        "fights_load": fights_load,
-        "metadata_load": metadata_load,
-        "prediction_count": prediction_count,
-        "predicted_fights": predicted_fights,
-        "queue_path": str(QUEUE_PATH),
-    }
-    append_queue_record(record)
-    return record
-
-
-def run_fight_week_report_now(
-    conn,
-    run_type: ReportRunType = "late",
     reference_date: date | None = None,
 ) -> dict[str, Any]:
     generated_at = datetime.now(EASTERN)
     report_reference_date = reference_date or generated_at.date()
-    config = get_mailchimp_config()
 
     event = check_nearest_event(report_reference_date)
     event_date = event["event_date"]
@@ -609,20 +357,13 @@ def run_fight_week_report_now(
 
     if not is_fight_weekend(event_date, report_reference_date):
         record = build_skip_record(
-            run_type,
             "skipped_no_fight_weekend",
             "The nearest UFC event is not on Friday, Saturday, or Sunday of this run week.",
             event,
             generated_at,
-            generated_at,
         )
-        append_queue_record(record)
+        append_report_history(record)
         return record
-
-    audience_member_count = None
-    if not config.dry_run and config.list_id:
-        list_info = mailchimp_request(config, "GET", f"/lists/{config.list_id}", {})
-        audience_member_count = list_info.get("stats", {}).get("member_count")
 
     scrape_summary = run_upcoming_scrape(report_reference_date)
     fights_load = load_generated_csv(conn, UPCOMING_FIGHTS_CSV_PATH, UPCOMING_CSV_TO_DB_COLUMNS, UPSERT_UPCOMING)
@@ -637,30 +378,22 @@ def run_fight_week_report_now(
     if not report_rows:
         raise RuntimeError(f"No report rows were available for {event_name} on {event_date.isoformat()}.")
 
-    paths = save_report_files(event_name, event_date, run_type, report_rows, generated_at)
-    html = Path(paths["latest_html"]).read_text(encoding="utf-8")
-    text = Path(paths["latest_text"]).read_text(encoding="utf-8")
-    campaign = create_and_send_mailchimp_campaign(config, event_name, run_type, html, text, generated_at)
+    paths = save_report_files(event_name, event_date, report_rows, generated_at)
 
     record = {
-        "run_type": run_type,
-        "status": campaign["status"],
+        "status": "report_generated",
         "event_name": event_name,
         "event_date": event_date.isoformat(),
         "generated_at": generated_at.isoformat(),
-        "sent_at": campaign["sent_at"],
-        "mailchimp_campaign_id": campaign["campaign_id"],
-        "mailchimp_subject": campaign["subject"],
-        "audience_member_count": audience_member_count,
+        "report_title": build_report_title(event_name),
         "error_message": None,
-        "dry_run": config.dry_run,
         "report_paths": paths,
         "scrape_summary": scrape_summary,
         "fights_load": fights_load,
         "metadata_load": metadata_load,
         "prediction_count": prediction_count,
         "predicted_fights": predicted_fights,
-        "queue_path": str(QUEUE_PATH),
+        "history_path": str(HISTORY_PATH),
     }
-    append_queue_record(record)
+    append_report_history(record)
     return record

@@ -1,18 +1,15 @@
 param(
-    [ValidateSet("early", "late")]
-    [string] $RunType = "late",
-
     [string] $ReferenceDate = ""
 )
 
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-$LogDir = Join-Path $RepoRoot "backend\data\generated\automation\logs"
+$LogDir = Join-Path $RepoRoot "backend\data\generated\reports\logs"
 New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 
 $Timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
-$LogPath = Join-Path $LogDir "$Timestamp-send-now-$RunType.log"
+$LogPath = Join-Path $LogDir "$Timestamp-generate-report.log"
 
 function Write-RunLog {
     param([string] $Message)
@@ -29,12 +26,12 @@ if (-not (Test-Path -LiteralPath $Python)) {
     throw "Missing Python virtual environment at $Python"
 }
 
-$Arguments = @("-m", "automation.send_report_now", "--run-type", $RunType)
+$Arguments = @("-m", "reports.generate_report")
 if (-not [string]::IsNullOrWhiteSpace($ReferenceDate)) {
     $Arguments += @("--reference-date", $ReferenceDate)
 }
 
-Write-RunLog "Starting immediate fight report send. run_type=$RunType reference_date=$ReferenceDate"
+Write-RunLog "Starting local fight report generation. reference_date=$ReferenceDate"
 
 try {
     $Output = & $Python @Arguments 2>&1
@@ -47,7 +44,7 @@ try {
         throw "Immediate fight report command failed with exit code $ExitCode."
     }
 
-    Write-RunLog "Immediate fight report command completed."
+    Write-RunLog "Fight report command completed."
 } catch {
     Write-RunLog "Failed: $($_.Exception.Message)"
     exit 1
