@@ -39,18 +39,18 @@ const Stats = () => {
         <div className="stats-heading-row">
           <div>
             <p className="stats-greeting-text">Historical results</p>
-            <h1 className="stats-title-text">Return Progression</h1>
+            <h1 className="stats-title-text">Profit Progression</h1>
           </div>
 
           <p className="stats-bio-text">
-            Cumulative average model return rate by fight card<br />
+            Cumulative model profit in 1-unit bets by fight card<br />
             (This will look more readable as more fights happen)
           </p>
         </div>
 
         <ChartPanel
           url={AVERAGE_RETURN_CHART_URL}
-          alt="Line chart showing cumulative average model return by fight date"
+          alt="Line chart showing cumulative model profit in betting units by fight date"
           loadingText="Loading return chart..."
           errorText="Unable to load the return chart."
         />

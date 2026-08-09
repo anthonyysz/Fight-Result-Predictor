@@ -15,14 +15,14 @@ import seaborn as sns
 from fastapi import HTTPException
 
 
-def fetch_average_return_frame(conn) -> pd.DataFrame:
+def fetch_cumulative_profit_frame(conn) -> pd.DataFrame:
     query = """
         SELECT
             fight_date,
-            AVG(model_return)::float AS average_return,
-            COUNT(*) AS fight_count
+            SUM(model_return - 1)::float AS event_units,
+            COUNT(*) AS bet_count
         FROM public.historical_predictions
-        WHERE model_return != 1
+        WHERE model_pick != 'Pass'
         GROUP BY fight_date
         ORDER BY fight_date
     """
@@ -35,14 +35,14 @@ def fetch_average_return_frame(conn) -> pd.DataFrame:
     if not rows:
         raise HTTPException(
             status_code=409,
-            detail="No historical prediction returns are available.",
+            detail="No historical suggested bet returns are available.",
         )
 
     frame = pd.DataFrame(rows, columns=columns)
     frame["fight_date"] = pd.to_datetime(frame["fight_date"])
-    frame["average_return"] = pd.to_numeric(frame["average_return"])
-    frame["fight_count"] = pd.to_numeric(frame["fight_count"])
-    frame["progressive_average_return"] = frame["average_return"].expanding().mean()
+    frame["event_units"] = pd.to_numeric(frame["event_units"])
+    frame["bet_count"] = pd.to_numeric(frame["bet_count"])
+    frame["cumulative_units"] = frame["event_units"].cumsum()
     return frame
 
 
@@ -140,7 +140,7 @@ def save_figure_to_png(fig) -> bytes:
 
 
 def render_average_return_chart(conn: Any) -> bytes:
-    frame = fetch_average_return_frame(conn)
+    frame = fetch_cumulative_profit_frame(conn)
 
     set_chart_theme()
 
@@ -149,7 +149,7 @@ def render_average_return_chart(conn: Any) -> bytes:
     sns.lineplot(
         data=frame,
         x="fight_date",
-        y="progressive_average_return",
+        y="cumulative_units",
         marker="o",
         linewidth=2.5,
         markersize=7,
@@ -157,10 +157,10 @@ def render_average_return_chart(conn: Any) -> bytes:
         ax=ax,
     )
 
-    ax.axhline(1.0, color="#e7e9ec", linestyle="--", linewidth=1.2, alpha=0.75)
-    ax.set_title("Cumulative Average Return by Fight Date", fontsize=18, fontweight="bold", pad=16)
+    ax.axhline(0.0, color="#e7e9ec", linestyle="--", linewidth=1.2, alpha=0.75)
+    ax.set_title("Cumulative Model Profit by Fight Date", fontsize=18, fontweight="bold", pad=16)
     ax.set_xlabel("Fight Date", labelpad=10)
-    ax.set_ylabel("Average Return to Date", labelpad=10)
+    ax.set_ylabel("Units Won/Lost", labelpad=10)
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %d"))
     ax.tick_params(axis="x", rotation=35)
     ax.margins(x=0.04, y=0.12)
