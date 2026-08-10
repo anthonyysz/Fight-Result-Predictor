@@ -43,14 +43,14 @@ const Stats = () => {
           </div>
 
           <p className="stats-bio-text">
-            Odds-weighted cumulative model profit by fight card<br />
-            (This will look more readable as more fights happen)
+            Cumulative flat-bet ROI by fight card<br />
+            (1 unit risked per picked fight)
           </p>
         </div>
 
         <ChartPanel
           url={AVERAGE_RETURN_CHART_URL}
-          alt="Line chart showing odds-weighted cumulative model profit by fight date"
+          alt="Line chart showing cumulative flat-bet ROI by fight date"
           loadingText="Loading return chart..."
           errorText="Unable to load the return chart."
         />
