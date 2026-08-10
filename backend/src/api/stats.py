@@ -19,7 +19,23 @@ def fetch_cumulative_profit_frame(conn) -> pd.DataFrame:
     query = """
         SELECT
             fight_date,
-            SUM(model_return - 1)::float AS event_units,
+            SUM(
+                CASE
+                    WHEN model_pick = red_fighter THEN
+                        CASE
+                            WHEN model_return > 1 THEN 1.0
+                            WHEN red_odds < 0 THEN -(ABS(red_odds)::float / 100.0)
+                            ELSE -(100.0 / NULLIF(red_odds, 0))
+                        END
+                    WHEN model_pick = blue_fighter THEN
+                        CASE
+                            WHEN model_return > 1 THEN 1.0
+                            WHEN blue_odds < 0 THEN -(ABS(blue_odds)::float / 100.0)
+                            ELSE -(100.0 / NULLIF(blue_odds, 0))
+                        END
+                    ELSE 0.0
+                END
+            )::float AS event_units,
             COUNT(*) AS bet_count
         FROM public.historical_predictions
         WHERE model_pick != 'Pass'
@@ -158,7 +174,7 @@ def render_average_return_chart(conn: Any) -> bytes:
     )
 
     ax.axhline(0.0, color="#e7e9ec", linestyle="--", linewidth=1.2, alpha=0.75)
-    ax.set_title("Cumulative Model Profit by Fight Date", fontsize=18, fontweight="bold", pad=16)
+    ax.set_title("Odds-Weighted Cumulative Model Profit by Fight Date", fontsize=18, fontweight="bold", pad=16)
     ax.set_xlabel("Fight Date", labelpad=10)
     ax.set_ylabel("Units Won/Lost", labelpad=10)
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %d"))
